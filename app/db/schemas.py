@@ -7,10 +7,12 @@ from enum import Enum
 
 PyObjectId = Annotated[str, BeforeValidator(str)]
 
+
 class Anomaly(str, Enum):
     missing_page = "missing_page"
     low_confidence = "low_confidence"
     aspect_ratio = "aspect_ratio_anomaly"
+
 
 class TaskState(str, Enum):
     new = "new"
@@ -18,6 +20,7 @@ class TaskState(str, Enum):
     in_progress = "in_progress"
     completed = "completed"
     failed = "failed"
+
 
 class Title(BaseModel):
     id: PyObjectId = Field(alias="_id", default_factory=lambda: ObjectId())
@@ -27,6 +30,7 @@ class Title(BaseModel):
     modified_at: datetime = Field(default_factory=datetime.now)
     state: TaskState = Field(default=TaskState.new)
     pages: list["PageTransformations"] = Field(default_factory=list)
+
 
 class PageTransformations(BaseModel):
     id: PyObjectId = Field(alias="_id", default_factory=lambda: ObjectId())
@@ -38,6 +42,7 @@ class PageTransformations(BaseModel):
     confidence: float = 0
     angle: float = 0
     flags: list[str] = Field(default_factory=list)
+
 
 class WorkflowOutput(BaseModel):
     results: list[PageTransformations]

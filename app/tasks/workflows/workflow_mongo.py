@@ -6,7 +6,11 @@ import certifi
 from pymongo import MongoClient
 from app.db.operations import db_update_task_state, db_create_title, db_add_pages_bulk
 from app.db.schemas import TaskState, Title, WorkflowOutput
-from app.core.anomalies import flag_low_confidence, flag_missing_pages, flag_ratio_anomalies
+from app.core.anomalies import (
+    flag_low_confidence,
+    flag_missing_pages,
+    flag_ratio_anomalies,
+)
 from app.core.rotate_model import rotate_images
 from app.core.crop_model import crop_images_inner, crop_images_outer
 from app.tasks.hatchet_client import hatchet
@@ -20,6 +24,7 @@ from hatchet_sdk import (
 _client = None
 _db = None
 
+
 def _ensure_db():
     global _client, _db
     if _db is None:
@@ -32,11 +37,16 @@ logger = logging.getLogger("auto-crop-ml")
 autocrop_workflow = hatchet.workflow(name="autocrop-title-workflow")
 upload_workflow = hatchet.workflow(name="upload-title-workflow")
 
+
 @upload_workflow.task()
 def upload(input: Title, ctx: Context):
     """Uploads a new title to the database."""
-    ctx.log(f"Uploading new title: {input.title_name} with crop method: {input.crop_method}")
-    title_id = db_create_title(Title(title_name=input.title_name, crop_method=input.crop_method), _ensure_db())
+    ctx.log(
+        f"Uploading new title: {input.title_name} with crop method: {input.crop_method}"
+    )
+    title_id = db_create_title(
+        Title(title_name=input.title_name, crop_method=input.crop_method), _ensure_db()
+    )
     ctx.log(f"Created title with ID: {title_id}")
     return {"title_id": title_id}
 
@@ -53,6 +63,7 @@ def crop(input: Title, ctx: Context):
         result = crop_images_outer(input.title_name)
 
     return WorkflowOutput(results=result)
+
 
 @autocrop_workflow.task(parents=[crop])
 def rotate(input: EmptyModel, ctx: Context):
@@ -80,6 +91,7 @@ def detect_anomalies(input: EmptyModel, ctx: Context):
     db_add_pages_bulk(title_id, result, _ensure_db())
     db_update_task_state(title_id, TaskState.completed, _ensure_db())
     return WorkflowOutput(results=pages_with_anomalies)
+
 
 @autocrop_workflow.on_failure_task()
 def mark_as_failed(input: EmptyModel, ctx: Context):

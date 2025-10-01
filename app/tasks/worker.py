@@ -5,8 +5,11 @@ from app.tasks.workflows.workflow_mongo import autocrop_workflow, upload_workflo
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("auto-crop-ml")
 
+
 def main() -> None:
-    worker = hatchet.worker("crop-worker", slots=1, workflows=[autocrop_workflow, upload_workflow])
+    worker = hatchet.worker(
+        "crop-worker", slots=1, workflows=[autocrop_workflow, upload_workflow]
+    )
     worker.start()
 
 

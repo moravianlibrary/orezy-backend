@@ -113,7 +113,9 @@ def get_skew_angle_hough(img: np.ndarray) -> float:
     return skew  # rotate CCW by this to deskew
 
 
-def rotate_images(results: list[PageTransformations], visualize: bool = False) -> list[PageTransformations]:
+def rotate_images(
+    results: list[PageTransformations], visualize: bool = False
+) -> list[PageTransformations]:
     for result in results:
         im = cv2.imread(result.filename)
         h, w = im.shape[0], im.shape[1]
@@ -132,7 +134,11 @@ def rotate_images(results: list[PageTransformations], visualize: bool = False) -
             )
             deskewed = cv2.warpAffine(im, M, (w, h))
             deskewed_crop = deskewed[y1:y2, x1:x2]
-            st.image(deskewed_crop, width=400, caption=f"{result.filename} (conf={result.confidence:.2f})")
+            st.image(
+                deskewed_crop,
+                width=400,
+                caption=f"{result.filename} (conf={result.confidence:.2f})",
+            )
     return results
 
 
@@ -144,7 +150,7 @@ if __name__ == "__main__":
         flag_low_confidence,
         flag_ratio_anomalies,
     )
-    
+
     input = "/Users/lucienovotna/Documents/AIorezy-data/2619387078/rawdata/1"
     results = crop_images_inner(input)
     results = rotate_images(results, visualize=True)

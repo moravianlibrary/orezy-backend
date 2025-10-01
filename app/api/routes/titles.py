@@ -16,7 +16,7 @@ async def get_title(title_id: str, db=Depends(get_db)):
     doc = await db.titles.find_one({"_id": ObjectId(title_id)})
     if not doc:
         raise HTTPException(404, "Title not found")
-        
+
     return jsonable_encoder(doc, custom_encoder={ObjectId: str})
 
 
@@ -38,11 +38,13 @@ async def prepare_title(title_data: Title, db=Depends(get_db)):
     # create a folder on PVC for given title, name it after ID
     return {"title_id": str(result.inserted_id)}
 
+
 @router.post("/upload")
 async def upload_files_bulk(db=Depends(get_db)):
     """Upload multiple files to a title."""
     # Upload files to PVC folder for given title
     return {"status": "success"}
+
 
 @router.post("/finish")
 async def finish_title_upload(title_id: str, db=Depends(get_db)):

@@ -9,12 +9,15 @@ import numpy as np
 
 logger = logging.getLogger("auto-crop-ml")
 
-CROP_MODEL = YOLO("/Users/lucienovotna/Documents/orezy-backend/app/models/autocrop-yolov10n-finetune.pt", task="detect")
+CROP_MODEL = YOLO(
+    "/Users/lucienovotna/Documents/orezy-backend/app/models/autocrop-yolov10n-finetune.pt",
+    task="detect",
+)
 
 
 def crop_images_outer(input_folder: str) -> list[PageTransformations]:
     """Crops images in the input folder by finding the largest contour.
-    
+
     Args:
         input_folder (str): Path to the folder containing images.
     Returns:
@@ -49,14 +52,16 @@ def crop_images_outer(input_folder: str) -> list[PageTransformations]:
         )
 
         logger.info(f"Cropped image {file} to box: {outer_box}")
-    
+
     results = append_missing_pages(results, files)
     return results
 
 
-def crop_images_inner(input_folder: str, batch_size: int = 16) -> list[PageTransformations]:
+def crop_images_inner(
+    input_folder: str, batch_size: int = 16
+) -> list[PageTransformations]:
     """Crops images in the input folder using a pretrained YOLO model.
-    
+
     Args:
         input_folder (str): Path to the folder containing images.
         batch_size (int): Batch size.
@@ -64,7 +69,11 @@ def crop_images_inner(input_folder: str, batch_size: int = 16) -> list[PageTrans
         List[PageTransformations]: List of detected pages with bounding boxes.
     """
     files = sorted(os.listdir(input_folder))
-    files = [os.path.join(input_folder, f) for f in files if f.lower().endswith((".tif", ".tiff", ".jpg"))]
+    files = [
+        os.path.join(input_folder, f)
+        for f in files
+        if f.lower().endswith((".tif", ".tiff", ".jpg"))
+    ]
 
     logger.info(f"Found {len(files)} images in {input_folder} to crop.")
 
@@ -108,11 +117,14 @@ def crop_images_inner(input_folder: str, batch_size: int = 16) -> list[PageTrans
             # Sort detected boxes by x_center so left pages are first
             detected_boxes.sort(key=lambda d: d.x_center)
             results.extend(detected_boxes)
-    
+
     results = append_missing_pages(results, files)
     return results
 
-def append_missing_pages(results: list[PageTransformations], files: list[str]) -> list[PageTransformations]:
+
+def append_missing_pages(
+    results: list[PageTransformations], files: list[str]
+) -> list[PageTransformations]:
     """Appends entries for files not detected by the algorithm.
 
     Args:

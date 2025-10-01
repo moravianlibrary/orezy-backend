@@ -9,5 +9,4 @@ hatchet = Hatchet(
         token=os.getenv("HATCHET_CLIENT_TOKEN"),
         logger=logging.getLogger("auto-crop-ml"),
     ),
-
 )

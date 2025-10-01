@@ -101,7 +101,9 @@ def bbox_from_image_contours(image: np.ndarray) -> np.ndarray:
     # Keep the largest blob (scanned book region)
     cnts, _ = cv2.findContours(th, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not cnts:
-        return np.array([0, 0, image.shape[1], image.shape[0]])  # No contours found, return full image
+        return np.array(
+            [0, 0, image.shape[1], image.shape[0]]
+        )  # No contours found, return full image
     c = max(cnts, key=cv2.contourArea)
 
     # Cover with a rectangle

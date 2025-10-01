@@ -21,11 +21,12 @@ async def lifespan(app):
         settings.mongodb_uri,
         serverSelectionTimeoutMS=5000,
         uuidRepresentation="standard",
-        tlsCAFile=certifi.where()
+        tlsCAFile=certifi.where(),
     )
     await client.admin.command("ping")
     yield
     await client.close()
+
 
 def get_db():
     assert client is not None, "DB client not initialized"
