@@ -36,6 +36,7 @@ services:
       SERVER_AUTH_SET_EMAIL_VERIFIED: "t"
       SERVER_DEFAULT_ENGINE_VERSION: "V1"
       SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS: localhost:7077
+      HATCHET_CLIENT_TLS_STRATEGY: none
     volumes:
       - "hatchet_lite_config:/config"
  

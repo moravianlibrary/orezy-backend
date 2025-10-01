@@ -4,4 +4,12 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "fastapi[standard]>=0.117.1",
+    "hatchet>=1.4.0",
+    "hatchet-sdk>=1.18.1",
+    "motor>=3.7.1",
+    "pydantic>=2.11.9",
+    "streamlit>=1.49.1",
+    "ultralytics>=8.3.201",
+]
