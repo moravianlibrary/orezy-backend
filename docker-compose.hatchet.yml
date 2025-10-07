@@ -16,11 +16,13 @@ services:
       timeout: 10s
       retries: 5
       start_period: 10s
+  
   hatchet-lite:
     image: ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest
     ports:
       - "8888:8888"
-      - "7077:7077"
+    expose:
+      - "7077"
     depends_on:
       postgres:
         condition: service_healthy
@@ -30,15 +32,52 @@ services:
       SERVER_AUTH_COOKIE_INSECURE: "t"
       SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
       SERVER_GRPC_INSECURE: "t"
-      SERVER_GRPC_BROADCAST_ADDRESS: localhost:7077
+      SERVER_GRPC_BROADCAST_ADDRESS: hatchet-lite:7077
       SERVER_GRPC_PORT: "7077"
       SERVER_URL: http://localhost:8888
       SERVER_AUTH_SET_EMAIL_VERIFIED: "t"
       SERVER_DEFAULT_ENGINE_VERSION: "V1"
-      SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS: localhost:7077
+      SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS: hatchet-lite:7077
       HATCHET_CLIENT_TLS_STRATEGY: none
     volumes:
       - "hatchet_lite_config:/config"
+  
+  api:
+    # Build once from your single Dockerfile
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    image: auto-crop-ml:uv               # Tagged so worker can reuse the same image
+    command: uv run fastapi dev --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # Add/override anything your app needs here
+      # HATCHET_*, DB_*, etc. pulled from .env are typical
+      PYTHONUNBUFFERED: "1"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/healthz || exit 1"]
+      interval: 60s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  worker:
+    image: auto-crop-ml:uv               # Re-use the already-built image
+    depends_on:
+      api:
+        condition: service_started
+      hatchet-lite:
+        condition: service_started
+    command: uv run -m app.tasks.worker
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+    restart: unless-stopped
  
 volumes:
   hatchet_lite_postgres_data:

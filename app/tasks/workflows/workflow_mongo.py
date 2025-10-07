@@ -89,7 +89,7 @@ def detect_anomalies(input: EmptyModel, ctx: Context):
     ctx.log(f"Detected {len(pages_with_anomalies)} pages with anomalies")
 
     db_add_pages_bulk(title_id, result, _ensure_db())
-    db_update_task_state(title_id, TaskState.completed, _ensure_db())
+    db_update_task_state(title_id, TaskState.ready, _ensure_db())
     return WorkflowOutput(results=pages_with_anomalies)
 
 

@@ -11,7 +11,7 @@ def db_update_task_state(title_id: str, new_state: TaskState, db):
     if not ObjectId.is_valid(title_id):
         raise ValueError(f"Invalid title id: {title_id}")
     result = db.titles.update_one(
-        {"_id": ObjectId(title_id)},
+        {"_id": title_id},
         {"$set": {"state": new_state, "modified_at": datetime.now()}},
     )
     if result.matched_count == 0:
@@ -38,7 +38,7 @@ def db_add_pages_bulk(title_id: str, pages_data: list[PageTransformations], db):
     docs = [page.model_dump(by_alias=True) for page in pages_data]
 
     db.titles.update_one(
-        {"_id": ObjectId(title_id)},
+        {"_id": title_id},
         {"$push": {"pages": {"$each": docs}}},
     )
 

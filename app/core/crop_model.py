@@ -10,7 +10,7 @@ import numpy as np
 logger = logging.getLogger("auto-crop-ml")
 
 CROP_MODEL = YOLO(
-    "/Users/lucienovotna/Documents/orezy-backend/app/models/autocrop-yolov10n-finetune.pt",
+    "app/core/autocrop-yolov10n-finetune.pt",
     task="detect",
 )
 
@@ -43,8 +43,8 @@ def crop_images_outer(input_folder: str) -> list[PageTransformations]:
         results.append(
             PageTransformations(
                 filename=file,
-                x_center=(outer_box[0] + outer_box[2]) / 2 / w,
-                y_center=(outer_box[1] + outer_box[3]) / 2 / h,
+                xc=(outer_box[0] + outer_box[2]) / 2 / w,
+                yc=(outer_box[1] + outer_box[3]) / 2 / h,
                 width=(outer_box[2] - outer_box[0]) / w,
                 height=(outer_box[3] - outer_box[1]) / h,
                 confidence=1.0,
@@ -107,15 +107,15 @@ def crop_images_inner(
                 detected_boxes.append(
                     PageTransformations(
                         filename=yolo_result.path,
-                        x_center=float(xc),
-                        y_center=float(yc),
+                        xc=float(xc),
+                        yc=float(yc),
                         width=float(w),
                         height=float(h),
                         confidence=float(box.conf.item()) if box else 0,
                     )
                 )
-            # Sort detected boxes by x_center so left pages are first
-            detected_boxes.sort(key=lambda d: d.x_center)
+            # Sort detected boxes by xc so left pages are first
+            detected_boxes.sort(key=lambda d: d.xc)
             results.extend(detected_boxes)
 
     results = append_missing_pages(results, files)
@@ -139,8 +139,8 @@ def append_missing_pages(
             results.append(
                 PageTransformations(
                     filename=file,
-                    x_center=0.5,
-                    y_center=0.5,
+                    xc=0.5,
+                    yc=0.5,
                     width=1.0,
                     height=1.0,
                     confidence=0,

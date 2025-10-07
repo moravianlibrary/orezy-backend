@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-import streamlit as st
 import logging
 
 import math
@@ -113,32 +112,18 @@ def get_skew_angle_hough(img: np.ndarray) -> float:
     return skew  # rotate CCW by this to deskew
 
 
-def rotate_images(
-    results: list[PageTransformations], visualize: bool = False
-) -> list[PageTransformations]:
+def rotate_images(results: list[PageTransformations]) -> list[PageTransformations]:
     for result in results:
         im = cv2.imread(result.filename)
         h, w = im.shape[0], im.shape[1]
         x1, y1, x2, y2 = xywh_to_xyxy_denorm(
-            (result.x_center, result.y_center, result.width, result.height),
+            (result.xc, result.yc, result.width, result.height),
             (w, h),
         )
         crop = im[y1:y2, x1:x2]
 
         angle = get_skew_angle_hough(crop)
         result.angle = angle
-
-        if visualize:
-            M = cv2.getRotationMatrix2D(
-                (result.x_center * w, result.y_center * h), angle, 1.0
-            )
-            deskewed = cv2.warpAffine(im, M, (w, h))
-            deskewed_crop = deskewed[y1:y2, x1:x2]
-            st.image(
-                deskewed_crop,
-                width=400,
-                caption=f"{result.filename} (conf={result.confidence:.2f})",
-            )
     return results
 
 
@@ -157,8 +142,3 @@ if __name__ == "__main__":
     results = flag_missing_pages(results)
     results = flag_low_confidence(results)
     results = flag_ratio_anomalies(results)
-
-    st.write("Possible errors:")
-    for r in results:
-        if r.flags:
-            st.write(r.filename, r.flags)

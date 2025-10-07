@@ -6,8 +6,8 @@ import os
 
 
 class Settings(BaseSettings):
-    mongodb_uri: str = os.getenv("MONGODB_URI")
-    mongodb_db: str = os.getenv("MONGODB_DB")
+    mongodb_uri: str = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+    mongodb_db: str = os.getenv("MONGODB_DB", "test")
 
 
 settings = Settings()

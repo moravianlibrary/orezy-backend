@@ -1,12 +1,10 @@
 from fastapi import FastAPI
-from app.api.routes import titles
+from app.api.routes import integration_control
 from app.api.deps import lifespan
-from app.api.routes import pages
 
 
 app = FastAPI(title="FastAPI + MongoDB", lifespan=lifespan)
-app.include_router(titles.router)
-app.include_router(pages.router)
+app.include_router(integration_control.router)
 
 
 # Optional health check

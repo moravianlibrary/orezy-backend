@@ -6,17 +6,17 @@ def xywh_to_xyxy_denorm(box: tuple, image_size: tuple) -> tuple:
     """Converts bounding box from YOLO format to denormalized [x1, y1, x2, y2] format.
 
     Args:
-        box (tuple): Normalized bounding box (x_center, y_center, width, height).
+        box (tuple): Normalized bounding box (xc, yc, width, height).
         image_size (tuple): Size of the image (width, height).
 
     Returns:
         tuple: Denormalized bounding box (x1, y1, x2, y2).
     """
-    x_center, y_center, width, height = box
-    x1 = int((x_center - width / 2) * image_size[0])
-    x2 = int((x_center + width / 2) * image_size[0])
-    y1 = int((y_center - height / 2) * image_size[1])
-    y2 = int((y_center + height / 2) * image_size[1])
+    xc, yc, width, height = box
+    x1 = int((xc - width / 2) * image_size[0])
+    x2 = int((xc + width / 2) * image_size[0])
+    y1 = int((yc - height / 2) * image_size[1])
+    y2 = int((yc + height / 2) * image_size[1])
     return (x1, y1, x2, y2)
 
 
