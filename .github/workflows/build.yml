@@ -1,5 +1,5 @@
 ---
-name: Main workflow
+name: Build base image
 # This workflow requires following secrets and variables to be set
 # SECRETS
 # https://github.com/ -> project -> /settings/secrets/actions
@@ -10,16 +10,17 @@ name: Main workflow
 # - MONGODB_DB
 # - HATCHET_CLIENT_TOKEN
 
-
-# this workflow uses actions:
-# NONE
-
 on:  # yamllint disable-line rule:truthy
   push:
     branches:
-      - dev
       - main
-      - "tri-944-ci"
+      - dev
+    # for future use
+    # paths:
+    #   - Dockerfile
+    #   - app/api/Dockerfile
+    #   - uv.lock
+    #   - pyproject.toml
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -31,11 +32,6 @@ jobs:
     outputs:
       environment: ${{ steps.check_branch_and_tag.outputs.environment }}
     steps:
-      - name: Dump VARS context
-        env:
-          VARS_CONTEXT: ${{ toJson(vars) }}
-        run: echo "$VARS_CONTEXT"
-
       - name: "Check the branch and tag"
         id: check_branch_and_tag
         run: |
@@ -47,9 +43,8 @@ jobs:
             echo "environment=test" >> $GITHUB_OUTPUT
           else
             echo "Branch name: ${{ github.ref_name }}, REF: ${{ github.ref }}"
-            echo "Nothing to do. Exit"
-            echo "environment=test" >> $GITHUB_OUTPUT
-            # exit 0
+            echo "Neither `main`, nor `dev` branch. Nothing to do. Exit"
+            exit 0
           fi
 
   set_variables:
