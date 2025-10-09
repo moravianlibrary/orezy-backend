@@ -89,7 +89,7 @@ jobs:
           - image: ${{ needs.set_variables.outputs.docker_image_base }}
             dockerfile: Dockerfile
           - image: ${{ needs.set_variables.outputs.docker_image_api }}
-            dockerfile: app/Dockerfile
+            dockerfile: app/api/Dockerfile
           - image: ${{ needs.set_variables.outputs.docker_image_worker }}
             dockerfile: app/tasks/Dockerfile
     steps:
