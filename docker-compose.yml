@@ -1,12 +1,12 @@
-name: hatchet-lite
+name: crop-app-backend
 services:
-  postgres:
+  postgres:  # Backend for Hatchet Lite
     image: postgres:15.6
     command: postgres -c 'max_connections=200'
     restart: always
     environment:
       - POSTGRES_USER=hatchet
-      - POSTGRES_PASSWORD=hatchet
+      - POSTGRES_PASSWORD=aRXqpv5Ol0Kq9GEX
       - POSTGRES_DB=hatchet
     volumes:
       - hatchet_lite_postgres_data:/var/lib/postgresql/data
@@ -17,7 +17,7 @@ services:
       retries: 5
       start_period: 10s
   
-  hatchet-lite:
+  hatchet-lite:  # Task processing queue for ML tasks
     image: ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest
     ports:
       - "8888:8888"
@@ -26,8 +26,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    environment:
-      DATABASE_URL: "postgresql://hatchet:hatchet@postgres:5432/hatchet?sslmode=disable"
+    environment:  # sampled from https://docs.hatchet.run/self-hosting/hatchet-lite
+      DATABASE_URL: "postgresql://hatchet:aRXqpv5Ol0Kq9GEX@postgres:5432/hatchet?sslmode=disable"
       SERVER_AUTH_COOKIE_DOMAIN: localhost
       SERVER_AUTH_COOKIE_INSECURE: "t"
       SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
@@ -41,22 +41,36 @@ services:
       HATCHET_CLIENT_TLS_STRATEGY: none
     volumes:
       - "hatchet_lite_config:/config"
+    
+  mongo-db:  # DB for backend
+    image: mongo:6.0
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: autocrop-db-user
+      MONGO_INITDB_ROOT_PASSWORD: VMewZTMoqMRzzxq2
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
   
-  api:
-    # Build once from your single Dockerfile
+  api:  # FastAPI backend
     build:
       context: .
       dockerfile: app/Dockerfile
-    image: auto-crop-ml:uv               # Tagged so worker can reuse the same image
+    image: auto-crop-ml:uv
+    #image: ghcr.io/nvtnlucie/orezy-api-demo:latest
+    depends_on:
+      mongo-db:
+        condition: service_started
     command: uv run fastapi dev --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
     env_file:
       - .env
-    environment:
-      # Add/override anything your app needs here
-      # HATCHET_*, DB_*, etc. pulled from .env are typical
-      PYTHONUNBUFFERED: "1"
+    #environment:
+    #  PYTHONUNBUFFERED: "1"
+    #  MONGODB_URI: "mongodb://autocrop-db-user:VMewZTMoqMRzzxq2@mongo-db:27017/mydb?authSource=admin"
+    #  MONGODB_DB: "mydb"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8000/healthz || exit 1"]
       interval: 60s
@@ -66,7 +80,8 @@ services:
     restart: unless-stopped
 
   worker:
-    image: auto-crop-ml:uv               # Re-use the already-built image
+    image: auto-crop-ml:uv
+    # image: ghcr.io/nvtnlucie/orezy-api-demo:latest
     depends_on:
       api:
         condition: service_started
@@ -75,10 +90,15 @@ services:
     command: uv run -m app.tasks.worker
     env_file:
       - .env
-    environment:
-      PYTHONUNBUFFERED: "1"
     restart: unless-stopped
+    volumes:
+       - /Users/lucienovotna/Documents/ai-orezy-batch1-compressed:/data/scan_data
+       - yolo_cache:/root/.cache/torch
+       - yolo_ultralytics:/root/.config/Ultralytics
  
 volumes:
   hatchet_lite_postgres_data:
   hatchet_lite_config:
+  mongo_data:
+  yolo_cache:
+  yolo_ultralytics:

@@ -9,13 +9,20 @@ import numpy as np
 
 logger = logging.getLogger("auto-crop-ml")
 
-CROP_MODEL = YOLO(
-    "app/core/autocrop-yolov10n-finetune.pt",
-    task="detect",
-)
+
+crop_model = None
+
+def _ensure_crop_model():
+    global crop_model
+    if crop_model is None:
+        crop_model = YOLO(
+            "app/core/autocrop-yolov10n-finetune.pt",
+            task="detect",
+        )
+    return crop_model
 
 
-def crop_images_outer(input_folder: str) -> list[PageTransformations]:
+def crop_images_outer(filelist: list[str]) -> list[PageTransformations]:
     """Crops images in the input folder by finding the largest contour.
 
     Args:
@@ -23,11 +30,8 @@ def crop_images_outer(input_folder: str) -> list[PageTransformations]:
     Returns:
         List[PageTransformations]: List of detected pages with bounding boxes.
     """
-    files = sorted(os.listdir(input_folder))
-    files = [os.path.join(input_folder, f) for f in files if f.endswith((".tif"))]
-
     results = []
-    for file in files:
+    for file in filelist:
         image = cv2.imread(file)
         w, h = image.shape[1], image.shape[0]
         outer_box = bbox_from_image_contours(image)
@@ -48,17 +52,17 @@ def crop_images_outer(input_folder: str) -> list[PageTransformations]:
                 width=(outer_box[2] - outer_box[0]) / w,
                 height=(outer_box[3] - outer_box[1]) / h,
                 confidence=1.0,
-            )
+            ).model_dump(by_alias=True)
         )
 
         logger.info(f"Cropped image {file} to box: {outer_box}")
 
-    results = append_missing_pages(results, files)
+    results = append_missing_pages(results, filelist)
     return results
 
 
 def crop_images_inner(
-    input_folder: str, batch_size: int = 16
+    filelist: list[str], batch_size: int = 16, crop_model=_ensure_crop_model()
 ) -> list[PageTransformations]:
     """Crops images in the input folder using a pretrained YOLO model.
 
@@ -68,19 +72,10 @@ def crop_images_inner(
     Returns:
         List[PageTransformations]: List of detected pages with bounding boxes.
     """
-    files = sorted(os.listdir(input_folder))
-    files = [
-        os.path.join(input_folder, f)
-        for f in files
-        if f.lower().endswith((".tif", ".tiff", ".jpg"))
-    ]
-
-    logger.info(f"Found {len(files)} images in {input_folder} to crop.")
-
     results = []
-    for i in range(0, len(files), batch_size):
-        batch = files[i : i + batch_size]
-        batch_result = CROP_MODEL.predict(
+    for i in range(0, len(filelist), batch_size):
+        batch = filelist[i : i + batch_size]
+        batch_result = crop_model.predict(
             batch, conf=0.1, iou=0, max_det=2, agnostic_nms=True
         )
 
@@ -116,25 +111,31 @@ def crop_images_inner(
                 )
             # Sort detected boxes by xc so left pages are first
             detected_boxes.sort(key=lambda d: d.xc)
+            # Add page type
+            if len(detected_boxes) == 2:
+                detected_boxes[0].type = "left"
+                detected_boxes[1].type = "right"
+            elif len(detected_boxes) == 1:
+                detected_boxes[0].type = "single"
             results.extend(detected_boxes)
 
-    results = append_missing_pages(results, files)
+    results = append_missing_pages(results, filelist)
     return results
 
 
 def append_missing_pages(
-    results: list[PageTransformations], files: list[str]
+    results: list[PageTransformations], filelist: list[str]
 ) -> list[PageTransformations]:
     """Appends entries for files not detected by the algorithm.
 
     Args:
         results (list): List of PageTransformations objects from the detection algorithm.
-        files (list): List of all image file paths in the input folder.
+        filelist (list): List of all image file paths in the input folder.
     Returns:
         list: Updated list of PageTransformations objects including undetected files.
     """
     detected_paths = {res.filename for res in results}
-    for file in files:
+    for file in filelist:
         if file not in detected_paths:
             results.append(
                 PageTransformations(
@@ -144,6 +145,7 @@ def append_missing_pages(
                     width=1.0,
                     height=1.0,
                     confidence=0,
+                    side="single",
                 )
             )
     return results

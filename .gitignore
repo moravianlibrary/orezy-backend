@@ -10,4 +10,5 @@ wheels/
 # Environment
 .venv
 .env
+.worker-env
 launch.json

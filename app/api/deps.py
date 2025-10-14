@@ -6,8 +6,8 @@ import os
 
 
 class Settings(BaseSettings):
-    mongodb_uri: str = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-    mongodb_db: str = os.getenv("MONGODB_DB", "test")
+    mongodb_uri: str = os.getenv("MONGODB_URI")
+    mongodb_db: str = os.getenv("MONGODB_DB")
 
 
 settings = Settings()
@@ -24,6 +24,16 @@ async def lifespan(app):
         tlsCAFile=certifi.where(),
     )
     await client.admin.command("ping")
+
+    db = get_db()
+    # Create unique index for external_id
+    await db.titles.create_index(
+        [("external_id", 1)],
+        unique=True,
+        name="unique_external_id",
+        partialFilterExpression={"external_id": {"$type": "string"}},
+    )
+
     yield
     await client.close()
 

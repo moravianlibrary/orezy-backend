@@ -4,6 +4,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl ca-certificates build-essential python3-opencv \
  && rm -rf /var/lib/apt/lists/*
 
+# setup CA trust
+RUN curl -fsSL https://curl.se/ca/cacert.pem -o /usr/local/share/ca-certificates/cacert.pem \
+ && update-ca-certificates
+
 COPY . /src/
 WORKDIR /src
 # Sync the project into a new environment
