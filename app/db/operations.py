@@ -1,6 +1,6 @@
 from datetime import datetime
 import logging
-from app.db.schemas import PageTransformations, TaskState, Title
+from app.db.schemas import Scan, TaskState, Title
 from bson import ObjectId
 
 logger = logging.getLogger("auto-crop-ml")
@@ -30,7 +30,7 @@ def db_create_title(title_data: Title, db):
     return {"title_id": str(result.inserted_id)}
 
 
-def db_add_pages_bulk(title_id: ObjectId, pages_data: list[PageTransformations], db):
+def db_add_pages_bulk(title_id: ObjectId, pages_data: list[Scan], db):
     """Add multiple pages to a title."""
     docs = [page.model_dump(by_alias=True) for page in pages_data]
 

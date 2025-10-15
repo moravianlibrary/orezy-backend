@@ -76,12 +76,14 @@ def detect_anomalies(input: EmptyModel, ctx: Context):
     result = flag_low_confidence(result)
     result = flag_ratio_anomalies(result)
 
-    pages_with_anomalies = [r for r in result if len(r.flags) > 0]
+    pages_with_anomalies = [
+        scan for scan in result if any(page.flags for page in scan.predicted_pages)
+    ]
     ctx.log(f"Detected {len(pages_with_anomalies)} pages with anomalies")
 
     db_add_pages_bulk(title_id, result, _ensure_db())
     db_update_task_state(title_id, TaskState.ready, _ensure_db())
-    
+
     # Serialize Pydantic objects
     pages_with_anomalies = [r.model_dump(by_alias=True) for r in pages_with_anomalies]
     return WorkflowOutput(results=pages_with_anomalies)

@@ -7,9 +7,7 @@ logger = logging.getLogger("auto-crop-ml")
 
 
 def main() -> None:
-    worker = hatchet.worker(
-        "crop-worker", slots=1, workflows=[autocrop_workflow]
-    )
+    worker = hatchet.worker("crop-worker", slots=1, workflows=[autocrop_workflow])
     worker.start()
 
 

@@ -5,7 +5,7 @@ import logging
 import math
 
 from app.core.utils import xywh_to_xyxy_denorm
-from app.db.schemas import PageTransformations
+from app.db.schemas import Scan
 
 logger = logging.getLogger("auto-crop-ml")
 
@@ -112,33 +112,17 @@ def get_skew_angle_hough(img: np.ndarray) -> float:
     return skew  # rotate CCW by this to deskew
 
 
-def rotate_images(results: list[PageTransformations]) -> list[PageTransformations]:
+def rotate_images(results: list[Scan]) -> list[Scan]:
     for result in results:
         im = cv2.imread(result.filename)
-        h, w = im.shape[0], im.shape[1]
-        x1, y1, x2, y2 = xywh_to_xyxy_denorm(
-            (result.xc, result.yc, result.width, result.height),
-            (w, h),
-        )
-        crop = im[y1:y2, x1:x2]
+        for page in result.predicted_pages:
+            h, w = im.shape[0], im.shape[1]
+            x1, y1, x2, y2 = xywh_to_xyxy_denorm(
+                (page.xc, page.yc, page.width, page.height),
+                (w, h),
+            )
+            crop = im[y1:y2, x1:x2]
 
-        angle = get_skew_angle_hough(crop)
-        result.angle = angle
+            angle = get_skew_angle_hough(crop)
+            page.angle = angle
     return results
-
-
-if __name__ == "__main__":
-    """Test the whole pipeline."""
-    from core.crop_model import crop_images_inner
-    from core.anomalies import (
-        flag_missing_pages,
-        flag_low_confidence,
-        flag_ratio_anomalies,
-    )
-
-    input = "/Users/lucienovotna/Documents/AIorezy-data/2619387078/rawdata/1"
-    results = crop_images_inner(input)
-    results = rotate_images(results, visualize=True)
-    results = flag_missing_pages(results)
-    results = flag_low_confidence(results)
-    results = flag_ratio_anomalies(results)

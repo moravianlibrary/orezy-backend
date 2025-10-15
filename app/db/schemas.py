@@ -1,11 +1,8 @@
 from bson import ObjectId
-from pydantic import AfterValidator, BaseModel, BeforeValidator, Field
-from pydantic.json_schema import JsonSchemaValue
+from pydantic import BaseModel, BeforeValidator, Field
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated
 from enum import Enum
-from pydantic_core import core_schema
-
 
 
 # Represents an ObjectId field in the database.
@@ -33,6 +30,29 @@ class CropMethod(str, Enum):
     outer = "outer"
 
 
+class Page(BaseModel):
+    xc: float
+    yc: float
+    width: float
+    height: float
+    confidence: float = 0
+    angle: float = 0
+    flags: list[str] = Field(default_factory=list)
+    type: str | None = None
+
+
+class Scan(BaseModel):
+    filename: str
+    id: PyObjectId = Field(alias="_id", default_factory=lambda: ObjectId())
+    predicted_pages: list[Page] = Field(default_factory=list)
+    user_edited_pages: list[Page] | None = None
+
+
+class WorkflowOutput(BaseModel):
+    results: list[Scan]
+    title_id: str | None = None
+
+
 class TitleCreate(BaseModel):
     external_id: str | None = None
     filelist: list[str] = Field(default_factory=list)
@@ -51,6 +71,10 @@ class TitleCreateNDK(TitleCreate):
     note: str | None = None
 
 
+class TitleCreateMZK(TitleCreate):
+    pass
+
+
 class Title(BaseModel):
     id: PyObjectId = Field(alias="_id", default_factory=lambda: ObjectId())
     external_id: str | None = None
@@ -59,7 +83,8 @@ class Title(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     modified_at: datetime = Field(default_factory=datetime.now)
     state: TaskState = Field(default=TaskState.new)
-    pages: list["PageTransformations"] = Field(default_factory=list)
+    pages: list[Scan] = Field(default_factory=list)
+
 
 class TitleNDK(Title):
     crop_type_code: str | None = None
@@ -73,19 +98,5 @@ class TitleNDK(Title):
     note: str | None = None
 
 
-class PageTransformations(BaseModel):
-    id: PyObjectId = Field(alias="_id", default_factory=lambda: ObjectId())
-    filename: str
-    xc: float = 0
-    yc: float = 0
-    width: float = 0
-    height: float = 0
-    confidence: float = 0
-    angle: float = 0
-    flags: list[str] = Field(default_factory=list)
-    type: str | None = None
-
-
-class WorkflowOutput(BaseModel):
-    results: list[PageTransformations]
-    title_id: str | None = None
+class TitleMZK(Title):
+    pass

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.encoders import jsonable_encoder
 from app.api.deps import get_db
-from app.db.schemas import TaskState, Title, TitleCreateNDK, TitleNDK
+from app.api.routes.utils import format_page_data
+from app.db.schemas import Scan, TaskState, Title, TitleCreateNDK, TitleNDK
 from starlette.responses import RedirectResponse
 from pymongo.errors import DuplicateKeyError
 from app.tasks.workflows.workflow_mongo import autocrop_workflow
@@ -27,7 +27,8 @@ async def create_title(title_data: TitleCreateNDK, db=Depends(get_db)):
     try:
         await autocrop_workflow.aio_run_no_wait(input=Title(**doc))
         await db.titles.update_one(
-            {"external_id": doc["external_id"]}, {"$set": {"state": TaskState.scheduled}}
+            {"external_id": doc["external_id"]},
+            {"$set": {"state": TaskState.scheduled}},
         )
     except Exception as e:
         await db.titles.delete_one({"external_id": doc["external_id"]})
@@ -69,12 +70,12 @@ async def get_coordinates(external_id: str, db=Depends(get_db)):
     if not title:
         raise HTTPException(404, "Title not found")
 
+    scans = [Scan(**scan) for scan in title.get("pages", [])]
+    pages = format_page_data(scans)
+
     return {
         "id": external_id,
-        "pages": jsonable_encoder(
-            title["pages"],
-            include={"filename", "xc", "yc", "width", "height", "angle", "type"},
-        ),
+        "pages": pages,
     }
 
 
