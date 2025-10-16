@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_db
-from app.api.routes.utils import format_page_data
+from app.api.utils import format_page_data
 from app.db.schemas import Scan, TaskState, Title, TitleCreateNDK, TitleNDK
 from starlette.responses import RedirectResponse
 from pymongo.errors import DuplicateKeyError

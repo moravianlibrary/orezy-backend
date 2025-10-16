@@ -1,12 +1,13 @@
 from fastapi import FastAPI
-from app.api.routes import ndk_control
+from app.api.routes import ndk_backend, webapp_backend
 from app.api.deps import lifespan
 from fastapi.openapi.utils import get_openapi
 from app.db.schemas import TaskState
 
 
 app = FastAPI(title="AutoCrop API", lifespan=lifespan)
-app.include_router(ndk_control.router)
+app.include_router(ndk_backend.router)
+app.include_router(webapp_backend.router)
 
 
 def custom_openapi():
@@ -18,7 +19,7 @@ def custom_openapi():
         description="NDK integration endpoints",
         routes=app.routes,
     )
-    # Example: Add a custom schema
+    # Add a custom schema
     openapi_schema["components"]["schemas"]["TaskState"] = {
         "title": "TaskState",
         "type": "string",
