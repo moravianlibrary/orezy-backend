@@ -1,7 +1,8 @@
+from fastapi.encoders import jsonable_encoder
 from app.db.schemas import Scan
 
 
-def format_page_data(scans: list[Scan]) -> list[dict]:
+def format_page_data_flat(scans: list[Scan]) -> list[dict]:
     """Overrides predicted pages with user edited pages if available, flattens the list."""
     formatted_pages = []
     for scan in scans:
@@ -21,3 +22,38 @@ def format_page_data(scans: list[Scan]) -> list[dict]:
                 }
             )
     return formatted_pages
+
+
+def format_page_data_list(scans: list[Scan]) -> list[dict]:
+    """Overrides predicted pages with user edited pages if available."""
+    formatted_scans = []
+    for scan in scans:
+        if scan.user_edited_pages:
+            edited = True
+            pages = scan.user_edited_pages
+        else:
+            edited = False
+            pages = scan.predicted_pages
+
+        formatted_scans.append(
+            {
+                "_id": str(scan.id),
+                "flags": set(scan.flags),
+                "pages": jsonable_encoder(pages, exclude={"confidence"}),
+                "edited": edited,
+            }
+        )
+    return formatted_scans
+
+
+def format_predicted(scans: list[Scan]) -> list[dict]:
+    formatted_scans = []
+    for scan in scans:
+        formatted_scans.append(
+            {
+                "_id": str(scan.id),
+                "flags": set(scan.flags),
+                "pages": jsonable_encoder(scan.predicted_pages, exclude={"confidence"}),
+            }
+        )
+    return formatted_scans

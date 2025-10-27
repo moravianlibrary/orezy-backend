@@ -4,7 +4,7 @@ import logging
 
 import math
 
-from app.core.utils import xywh_to_xyxy_denorm
+from app.core.utils import cxywh_to_xyxy, denormalize_bbox
 from app.db.schemas import Scan
 
 logger = logging.getLogger("auto-crop-ml")
@@ -117,10 +117,8 @@ def rotate_images(results: list[Scan]) -> list[Scan]:
         im = cv2.imread(result.filename)
         for page in result.predicted_pages:
             h, w = im.shape[0], im.shape[1]
-            x1, y1, x2, y2 = xywh_to_xyxy_denorm(
-                (page.xc, page.yc, page.width, page.height),
-                (w, h),
-            )
+            x1, y1, x2, y2 = cxywh_to_xyxy((page.xc, page.yc, page.width, page.height))
+            x1, y1, x2, y2 = denormalize_bbox((x1, y1, x2, y2), w, h)
             crop = im[y1:y2, x1:x2]
 
             angle = get_skew_angle_hough(crop)

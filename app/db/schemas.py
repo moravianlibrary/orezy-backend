@@ -1,13 +1,40 @@
 from bson import ObjectId
-from pydantic import BaseModel, BeforeValidator, Field
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    PlainSerializer,
+    WithJsonSchema,
+    model_validator,
+)
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Optional, Union
 from enum import Enum
 
 
-# Represents an ObjectId field in the database.
-# It will be represented as a `str` on the model so that it can be serialized to JSON.
-PyObjectId = Annotated[str, BeforeValidator(str)]
+def validate_object_id(value: Union[str, ObjectId]) -> ObjectId:
+    if isinstance(value, ObjectId):
+        return value
+
+    if ObjectId.is_valid(value):
+        return ObjectId(value)
+
+    raise ValueError("Invalid ObjectId {value}")
+
+
+ObjectIdField = Annotated[
+    Union[str, ObjectId],
+    AfterValidator(validate_object_id),
+    PlainSerializer(lambda x: str(x), return_type=str, when_used="json"),
+    WithJsonSchema({"type": "string"}, mode="serialization"),
+]
+
+
+class BaseModelWithId(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    id: Optional[ObjectIdField] = Field(default=ObjectId(), alias="_id")
 
 
 class Anomaly(str, Enum):
@@ -22,6 +49,7 @@ class TaskState(str, Enum):
     in_progress = "in_progress"
     ready = "ready"
     failed = "failed"
+    user_approved = "user_approved"
     completed = "completed"
 
 
@@ -30,22 +58,34 @@ class CropMethod(str, Enum):
     outer = "outer"
 
 
-class Page(BaseModel):
+class Page(BaseModelWithId):
     xc: float
     yc: float
     width: float
     height: float
     confidence: float = 0
     angle: float = 0
-    flags: list[str] = Field(default_factory=list)
     type: str | None = None
 
+    @model_validator(mode="after")
+    def round_values(cls, values):
+        """Round all numeric fields to 3 decimals."""
+        for field in ("xc", "yc", "width", "height", "confidence", "angle"):
+            val = getattr(values, field, None)
+            if isinstance(val, (int, float)):
+                setattr(values, field, round(val, 3))
+        return values
 
-class Scan(BaseModel):
+
+class Scan(BaseModelWithId):
     filename: str
-    id: PyObjectId = Field(alias="_id", default_factory=lambda: ObjectId())
+    flags: list[str] = Field(default_factory=list)
     predicted_pages: list[Page] = Field(default_factory=list)
     user_edited_pages: list[Page] | None = None
+
+
+class ScanUpdate(BaseModelWithId):
+    pages: list[Page]
 
 
 class WorkflowOutput(BaseModel):
@@ -58,8 +98,6 @@ class TitleCreate(BaseModel):
     filelist: list[str] = Field(default_factory=list)
     crop_method: CropMethod = Field(default=CropMethod.inner)
 
-
-class TitleCreateNDK(TitleCreate):
     crop_type_code: str | None = None
     double_page: bool = False
     scanner_code: str | None = None
@@ -71,12 +109,7 @@ class TitleCreateNDK(TitleCreate):
     note: str | None = None
 
 
-class TitleCreateMZK(TitleCreate):
-    pass
-
-
-class Title(BaseModel):
-    id: PyObjectId = Field(alias="_id", default_factory=lambda: ObjectId())
+class Title(BaseModelWithId):
     external_id: str | None = None
     filelist: list[str] = Field(default_factory=list)
     crop_method: CropMethod
@@ -85,8 +118,6 @@ class Title(BaseModel):
     state: TaskState = Field(default=TaskState.new)
     pages: list[Scan] = Field(default_factory=list)
 
-
-class TitleNDK(Title):
     crop_type_code: str | None = None
     double_page: bool = False
     scanner_code: str | None = None
@@ -96,7 +127,3 @@ class TitleNDK(Title):
     page_count: int | None = None
     scan_count: int | None = None
     note: str | None = None
-
-
-class TitleMZK(Title):
-    pass

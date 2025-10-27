@@ -3,7 +3,7 @@ import cv2
 from ultralytics import YOLO
 
 from app.db.schemas import Page, Scan
-from app.core.utils import add_margin, bbox_from_image_contours
+from app.core.utils import add_margin, assign_page_type, bbox_from_image_contours
 import numpy as np
 
 logger = logging.getLogger("auto-crop-ml")
@@ -16,7 +16,7 @@ def _ensure_crop_model():
     global crop_model
     if crop_model is None:
         crop_model = YOLO(
-            "app/core/autocrop-yolov10n-finetune.pt",
+            "models/crop-yolov10n-finetune.pt",
             task="detect",
         )
     return crop_model
@@ -58,13 +58,12 @@ def crop_images_outer(filelist: list[str]) -> list[Scan]:
                 confidence=1.0,
             )
         )
-
+        scan = assign_page_type(scan)
         results.append(scan)
 
         logger.info(f"Cropped image {file} to box: {outer_box}")
 
     results = append_missing_pages(results, filelist)
-    results = assign_page_types(results)
     return results
 
 
@@ -111,29 +110,18 @@ def crop_images_inner(
 
                 scan.predicted_pages.append(
                     Page(
-                        xc=float(xc),
-                        yc=float(yc),
-                        width=float(w),
-                        height=float(h),
-                        confidence=float(box.conf.item()) if box else 0,
+                        xc=xc,
+                        yc=yc,
+                        width=w,
+                        height=h,
+                        confidence=box.conf.item(),
                     )
                 )
-            # Sort detected boxes by xc so left pages are first
-            scan.predicted_pages.sort(key=lambda d: d.xc)
+            # Divide pages into left - right based on xc
+            scan = assign_page_type(scan)
             results.append(scan)
 
     results = append_missing_pages(results, filelist)
-    results = assign_page_types(results)
-    return results
-
-
-def assign_page_types(results: list[Scan]) -> list[Scan]:
-    for scan in results:
-        if len(scan.predicted_pages) == 2:
-            scan.predicted_pages[0].type = "left"
-            scan.predicted_pages[1].type = "right"
-        else:
-            scan.predicted_pages[0].type = "single"
     return results
 
 
@@ -155,7 +143,7 @@ def append_missing_pages(results: list[Scan], filelist: list[str]) -> list[Scan]
                     yc=0.5,
                     width=1.0,
                     height=1.0,
-                    confidence=0,
+                    confidence=0.0,
                 )
             )
     return results

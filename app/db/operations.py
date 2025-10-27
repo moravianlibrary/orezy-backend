@@ -21,6 +21,17 @@ def db_update_task_state(title_id: str, new_state: TaskState, db):
     return {"status": "success", "updated_count": result.modified_count}
 
 
+def db_get_state(title_id: str, db) -> TaskState | None:
+    """Get the state of a title."""
+    if not ObjectId.is_valid(title_id):
+        raise ValueError(f"Invalid title id: {title_id}")
+    title = db.titles.find_one({"_id": ObjectId(title_id)})
+    if not title:
+        raise Exception(f"Title not found: {title_id}")
+
+    return title.get("state")
+
+
 def db_create_title(title_data: Title, db):
     """Create a new title."""
     doc = title_data.model_dump(by_alias=True)

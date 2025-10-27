@@ -1,23 +1,28 @@
 import numpy as np
 import cv2
 
+from app.db.schemas import Scan
 
-def xywh_to_xyxy_denorm(box: tuple, image_size: tuple) -> tuple:
-    """Converts bounding box from YOLO format to denormalized [x1, y1, x2, y2] format.
 
-    Args:
-        box (tuple): Normalized bounding box (xc, yc, width, height).
-        image_size (tuple): Size of the image (width, height).
+def denormalize_bbox(
+    bbox: tuple[float, float, float, float], img_w: int, img_h: int
+) -> tuple[int, int, int, int]:
+    """Denormalizes a bounding box from relative coordinates to absolute pixel values."""
+    return (
+        int(bbox[0] * img_w),
+        int(bbox[1] * img_h),
+        int(bbox[2] * img_w),
+        int(bbox[3] * img_h),
+    )
 
-    Returns:
-        tuple: Denormalized bounding box (x1, y1, x2, y2).
-    """
-    xc, yc, width, height = box
-    x1 = int((xc - width / 2) * image_size[0])
-    x2 = int((xc + width / 2) * image_size[0])
-    y1 = int((yc - height / 2) * image_size[1])
-    y2 = int((yc + height / 2) * image_size[1])
-    return (x1, y1, x2, y2)
+
+def cxywh_to_xyxy(xc: int, yc: int, w: int, h: int) -> tuple[int, int, int, int]:
+    """Converts bounding box from center x, center y, width, height to x1, y1, x2, y2 format."""
+    x1 = int(xc - w / 2)
+    y1 = int(yc - h / 2)
+    x2 = int(xc + w / 2)
+    y2 = int(yc + h / 2)
+    return x1, y1, x2, y2
 
 
 def bbox_union(boxes: np.ndarray) -> np.ndarray:
@@ -112,3 +117,20 @@ def bbox_from_image_contours(image: np.ndarray) -> np.ndarray:
     x1, y1 = box[:, 0].min(), box[:, 1].min()
     x2, y2 = box[:, 0].max(), box[:, 1].max()
     return np.array([x1, y1, x2, y2])
+
+
+def assign_page_type(scan: Scan) -> Scan:
+    """Assigns page types (left, right, single) based on number of pages in scan.
+
+    Args:
+        scan (Scan): Scan object with predicted pages.
+    Returns:
+        Scan: Updated Scan object with assigned page types.
+    """
+    if len(scan.predicted_pages) == 2:
+        scan.predicted_pages = sorted(scan.predicted_pages, key=lambda d: d.xc)
+        scan.predicted_pages[0].type = "left"
+        scan.predicted_pages[1].type = "right"
+    else:
+        scan.predicted_pages[0].type = "single"
+    return scan
