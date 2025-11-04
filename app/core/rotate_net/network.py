@@ -36,24 +36,26 @@ class AngleDegModel(nn.Module):
         self.head = DegreeHead(in_feats, angle_max)
 
         if model is not None:
-            ckpt = torch.load(model)
+            ckpt = torch.load(model, map_location=self.device)
             self.load_state_dict(ckpt["model"])
+
+    @property
+    def device(self):
+        return next(self.parameters()).device
 
     def forward(self, x):
         """Forward pass."""
         feats = self.backbone(x)
         return self.head(feats)  # (B,1)
 
-    def predict_angles(
-        self, loader: DataLoader, device: torch.device = "mps"
-    ) -> np.ndarray:
+    def predict_angles(self, loader: DataLoader) -> np.ndarray:
         """Predict angles for all images in data loader."""
-        self.to(device)
+        self.to(self.device)
         self.eval()
         preds = []
         with torch.no_grad():
             for imgs, _, _ in tqdm(loader, desc="Predict rotation", leave=False):
-                imgs = imgs.to(device, non_blocking=True)
+                imgs = imgs.to(self.device, non_blocking=True)
                 outputs = self(imgs)
                 preds.append(outputs.detach().cpu().numpy().reshape(-1))
         return np.concatenate(preds)
