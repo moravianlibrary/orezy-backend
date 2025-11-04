@@ -1,47 +1,111 @@
 name: crop-app-backend
+
 services:
-  postgres:  # Backend for Hatchet Lite
+  postgres:
     image: postgres:15.6
-    command: postgres -c 'max_connections=200'
+    command: postgres -c 'max_connections=1000'
     restart: always
+    hostname: "postgres"
     environment:
       - POSTGRES_USER=hatchet
       - POSTGRES_PASSWORD=aRXqpv5Ol0Kq9GEX
       - POSTGRES_DB=hatchet
+    ports:
+      - "5435:5432"
     volumes:
-      - hatchet_lite_postgres_data:/var/lib/postgresql/data
+      - hatchet_postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -d hatchet -U hatchet"]
       interval: 10s
       timeout: 10s
       retries: 5
       start_period: 10s
-  
-  hatchet-lite:  # Task processing queue for ML tasks
-    image: ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest
+  rabbitmq:
+    image: "rabbitmq:3-management"
+    hostname: "rabbitmq"
     ports:
-      - "8888:8888"
-    expose:
-      - "7077"
+      - "5673:5672" # RabbitMQ
+      - "15673:15672" # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: "user-ar1HnF5kQrBNlFCG"
+      RABBITMQ_DEFAULT_PASS: "6wIx4cU0mtZ1nAMQ"
+    volumes:
+      - "hatchet_rabbitmq_data:/var/lib/rabbitmq"
+      - "hatchet_rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf" # Configuration file mount
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+  migration:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-migrate:latest
+    command: /hatchet/hatchet-migrate
+    environment:
+      DATABASE_URL: "postgresql://hatchet:aRXqpv5Ol0Kq9GEX@postgres:5432/hatchet?sslmode=disable"
     depends_on:
       postgres:
         condition: service_healthy
-    environment:  # sampled from https://docs.hatchet.run/self-hosting/hatchet-lite
+  setup-config:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-admin:latest
+    command: /hatchet/hatchet-admin quickstart --skip certs --generated-config-dir /hatchet/config --overwrite=false
+    environment:
       DATABASE_URL: "postgresql://hatchet:aRXqpv5Ol0Kq9GEX@postgres:5432/hatchet?sslmode=disable"
-      SERVER_AUTH_COOKIE_DOMAIN: localhost
+      SERVER_MSGQUEUE_RABBITMQ_URL: amqp://user-ar1HnF5kQrBNlFCG:6wIx4cU0mtZ1nAMQ@rabbitmq:5672/
+      SERVER_AUTH_COOKIE_DOMAIN: localhost:8080
       SERVER_AUTH_COOKIE_INSECURE: "t"
       SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
       SERVER_GRPC_INSECURE: "t"
-      SERVER_GRPC_BROADCAST_ADDRESS: hatchet-lite:7077
-      SERVER_GRPC_PORT: "7077"
-      SERVER_URL: http://localhost:8888
-      SERVER_AUTH_SET_EMAIL_VERIFIED: "t"
+      SERVER_GRPC_BROADCAST_ADDRESS: hatchet-engine:7070
       SERVER_DEFAULT_ENGINE_VERSION: "V1"
-      SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS: hatchet-lite:7077
-      HATCHET_CLIENT_TLS_STRATEGY: none
+      SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS: hatchet-engine:7070
     volumes:
-      - "hatchet_lite_config:/config"
-    
+      - hatchet_certs:/hatchet/certs
+      - hatchet_config:/hatchet/config
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+  hatchet-engine:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-engine:latest
+    command: /hatchet/hatchet-engine --config /hatchet/config
+    restart: on-failure
+    depends_on:
+      setup-config:
+        condition: service_completed_successfully
+      migration:
+        condition: service_completed_successfully
+    ports:
+      - "7070:7070"
+    expose:
+      - "7070"
+    environment:
+      DATABASE_URL: "postgresql://hatchet:aRXqpv5Ol0Kq9GEX@postgres:5432/hatchet?sslmode=disable"
+      SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
+      SERVER_GRPC_INSECURE: "t"
+    volumes:
+      - hatchet_certs:/hatchet/certs
+      - hatchet_config:/hatchet/config
+  hatchet-dashboard:
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:latest
+    command: sh ./entrypoint.sh --config /hatchet/config
+    ports:
+      - 8080:80
+    restart: on-failure
+    depends_on:
+      setup-config:
+        condition: service_completed_successfully
+      migration:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: "postgres://hatchet:aRXqpv5Ol0Kq9GEX@postgres:5432/hatchet"
+    volumes:
+      - hatchet_certs:/hatchet/certs
+      - hatchet_config:/hatchet/config
+ 
+
   mongo-db:  # DB for backend
     image: mongo:6.0
     restart: always
@@ -56,21 +120,22 @@ services:
   api:  # FastAPI backend
     build:
       context: .
-      dockerfile: app/Dockerfile
+      dockerfile: Dockerfile
     image: auto-crop-ml:uv
     #image: ghcr.io/nvtnlucie/orezy-api-demo:latest
     depends_on:
       mongo-db:
         condition: service_started
-    command: uv run fastapi dev --host 0.0.0.0 --port 8000
+    command: uv run fastapi run --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
     env_file:
-      - .env
-    #environment:
-    #  PYTHONUNBUFFERED: "1"
-    #  MONGODB_URI: "mongodb://autocrop-db-user:VMewZTMoqMRzzxq2@mongo-db:27017/mydb?authSource=admin"
-    #  MONGODB_DB: "mydb"
+      - .worker-env
+    environment:
+      MONGODB_URI: "mongodb://autocrop-db-user:VMewZTMoqMRzzxq2@mongo-db:27017/mydb?authSource=admin"
+      MONGODB_DB: "mydb"
+      SCANS_VOLUME_PATH: "/upload_data"
+      WEBAPP_TOKEN: "kMOOcWBTqS8OpPTy"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8000/healthz || exit 1"]
       interval: 60s
@@ -78,27 +143,35 @@ services:
       retries: 10
       start_period: 10s
     restart: unless-stopped
+    volumes:
+      - scan_data:/upload_data
 
   worker:
     image: auto-crop-ml:uv
-    # image: ghcr.io/nvtnlucie/orezy-api-demo:latest
     depends_on:
       api:
         condition: service_started
-      hatchet-lite:
+      hatchet-engine:
         condition: service_started
     command: uv run -m app.tasks.worker
     env_file:
-      - .env
+      - .worker-env
+    environment:
+      MONGODB_URI: "mongodb://autocrop-db-user:VMewZTMoqMRzzxq2@mongo-db:27017/mydb?authSource=admin"
+      MONGODB_DB: "mydb"
     restart: unless-stopped
     volumes:
-       - /Users/lucienovotna/Documents/ai-orezy-batch1-compressed:/data/scan_data
-       - yolo_cache:/root/.cache/torch
-       - yolo_ultralytics:/root/.config/Ultralytics
- 
+       # - yolo_cache:/root/.cache/torch
+       # - yolo_ultralytics:/root/.config/Ultralytics
+       - scan_data:/upload_data
+
 volumes:
-  hatchet_lite_postgres_data:
-  hatchet_lite_config:
+  hatchet_postgres_data:
+  hatchet_rabbitmq_data:
+  hatchet_rabbitmq.conf:
+  hatchet_config:
+  hatchet_certs:
   mongo_data:
-  yolo_cache:
-  yolo_ultralytics:
+  # yolo_cache:
+  # yolo_ultralytics:
+  scan_data:

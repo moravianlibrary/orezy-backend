@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy the project into the image
 COPY app /src/app/
+COPY models /src/models/
 COPY uv.lock* /src/
 COPY pyproject.toml /src/
 
