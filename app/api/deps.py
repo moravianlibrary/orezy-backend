@@ -1,4 +1,6 @@
-import certifi
+import secrets
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic_settings import BaseSettings
 from pymongo import AsyncMongoClient
 from contextlib import asynccontextmanager
@@ -12,6 +14,23 @@ class Settings(BaseSettings):
 
 settings = Settings()
 client: AsyncMongoClient | None = None
+bearer = HTTPBearer(auto_error=False)
+
+
+def require_token(credentials: HTTPAuthorizationCredentials = Depends(bearer)):
+    """Dependency to require a valid bearer token for authentication."""
+    if credentials is None or not credentials.scheme.lower() == "bearer":
+        # Force browsers/clients to prompt correctly:
+        raise HTTPException(
+            status_code=401,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    token = credentials.credentials
+
+    if not secrets.compare_digest(token, os.getenv("WEBAPP_TOKEN")):
+        raise HTTPException(status_code=401, detail="Invalid token")
+    return {"token": token}
 
 
 @asynccontextmanager
@@ -21,7 +40,7 @@ async def lifespan(app):
         settings.mongodb_uri,
         serverSelectionTimeoutMS=5000,
         uuidRepresentation="standard",
-        tlsCAFile=certifi.where(),
+        # tlsCAFile=certifi.where(),
     )
     await client.admin.command("ping")
 

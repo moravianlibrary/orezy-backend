@@ -1,7 +1,7 @@
 import os
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
-from app.api.deps import get_db
+from app.api.deps import get_db, require_token
 from app.api.utils import format_page_data_list, format_predicted
 from app.db.schemas import (
     Scan,
@@ -13,18 +13,23 @@ from app.db.schemas import (
 from app.tasks.workflows.workflow_mongo import autocrop_workflow
 from fastapi.encoders import jsonable_encoder
 
-router = APIRouter(prefix="/webapp", tags=["webapp"])
+
 VOLUME_PATH = os.getenv("SCANS_VOLUME_PATH")
+router = APIRouter(prefix="", tags=["webapp"], dependencies=[Depends(require_token)])
 
 
 @router.post("/create")
 async def create_title(title_data: TitleCreate, db=Depends(get_db)):
-    """Uploads a new title with according files to the database."""
+    """Creates new title object with an empty list of files. Prepares a directory in volume storage.
+
+    Returns:
+        dict: Created title ID.
+    """
     try:
         # Create title entry in DB
         title_dict = jsonable_encoder(title_data)
         title_dict["state"] = "new"
-        title_dict["pages"] = []
+        title_dict["filelist"] = []
         result = await db.titles.insert_one(title_dict)
 
         # Create directory for scans
@@ -37,7 +42,14 @@ async def create_title(title_data: TitleCreate, db=Depends(get_db)):
 
 @router.post("/{id}/upload-scan")
 async def upload_scan(id: str, scan_data: UploadFile, db=Depends(get_db)):
-    """Uploads image of a scan to volume storage and creates a scan entry in the database."""
+    """Uploads image (scan) to volume storage and links it to the title.
+
+    Returns:
+        dict: Title ID and filename of the uploaded scan.
+    """
+    if not ObjectId.is_valid(id):
+        raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
+
     current_state = await get_title_state(id, db)
     if current_state != TaskState.new:
         raise HTTPException(
@@ -60,7 +72,14 @@ async def upload_scan(id: str, scan_data: UploadFile, db=Depends(get_db)):
 
 @router.post("/{id}/process")
 async def process_title(id: str, db=Depends(get_db)):
-    """Schedules processing workflow for a title."""
+    """Moves title into state 'scheduled' and starts the ML prediction workflow.
+
+    Returns:
+        dict: Title ID and new state.
+    """
+    if not ObjectId.is_valid(id):
+        raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
+
     current_state = await get_title_state(id, db)
     if current_state != TaskState.new:
         raise HTTPException(
@@ -85,7 +104,14 @@ async def process_title(id: str, db=Depends(get_db)):
 
 @router.get("/{id}/status")
 async def get_title_state(id: str, db=Depends(get_db)):
-    """Gets the current state of a title by its ID."""
+    """Gets the current state of a title by its ID.
+
+    Returns:
+        str: Current state of the title.
+    """
+    if not ObjectId.is_valid(id):
+        raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
+
     title = await db.titles.find_one({"_id": ObjectId(id)})
     if not title:
         raise HTTPException(404, "Title not found")
@@ -95,7 +121,14 @@ async def get_title_state(id: str, db=Depends(get_db)):
 
 @router.get("/{id}/all-scans")
 async def get_pages(id: str, db=Depends(get_db)):
-    """Get crop instructions for all pages."""
+    """Gets crop instructions for all pages.
+
+    Returns:
+        list: List of scans with page crop instructions.
+    """
+    if not ObjectId.is_valid(id):
+        raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
+
     title = await db.titles.find_one({"_id": ObjectId(id)})
     if not title:
         raise HTTPException(404, "Title not found")
@@ -108,7 +141,14 @@ async def get_pages(id: str, db=Depends(get_db)):
 
 @router.get("/{id}/all-scans/{scan_id}")
 async def get_pages_for_scan(id: str, scan_id: str, db=Depends(get_db)):
-    """Get crop instructions for a specific file (scan)."""
+    """Gets crop instructions for a specific file (scan).
+
+    Returns:
+        dict: Scan with page crop instructions.
+    """
+    if not ObjectId.is_valid(id):
+        raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
+
     scan = await db.titles.find_one(
         {"pages._id": ObjectId(scan_id), "_id": ObjectId(id)},
         {"pages": {"$elemMatch": {"_id": ObjectId(scan_id)}}},
@@ -122,6 +162,14 @@ async def get_pages_for_scan(id: str, scan_id: str, db=Depends(get_db)):
 
 @router.get("/{id}/ok-scans")
 async def get_ok_scans(id: str, db=Depends(get_db)):
+    """Gets all OK (without flags) scans for a title.
+
+    Returns:
+        list: List of scans with page crop instructions.
+    """
+    if not ObjectId.is_valid(id):
+        raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
+
     pages = await get_pages(id, db)
     ok_scans = [scan for scan in pages if not scan["flags"]]
     return ok_scans
@@ -129,7 +177,14 @@ async def get_ok_scans(id: str, db=Depends(get_db)):
 
 @router.get("/{id}/nok-scans")
 async def get_flagged_scans(id: str, db=Depends(get_db)):
-    """Get all flagged scans for a title."""
+    """Gets all scans with flags for a title.
+
+    Returns:
+        list: List of scans with page crop instructions.
+    """
+    if not ObjectId.is_valid(id):
+        raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
+
     pages = await get_pages(id, db)
     flagged_scans = [scan for scan in pages if scan["flags"]]
     return flagged_scans
@@ -137,6 +192,14 @@ async def get_flagged_scans(id: str, db=Depends(get_db)):
 
 @router.get("/{id}/predicted-scans")
 async def get_predicted_pages(id: str, db=Depends(get_db)):
+    """Gets predictions for all scans (without user edits).
+
+    Returns:
+        list: List of scans with predicted page crop instructions.
+    """
+    if not ObjectId.is_valid(id):
+        raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
+
     title = await db.titles.find_one({"_id": ObjectId(id)})
     if not title:
         raise HTTPException(404, "Title not found")
@@ -148,7 +211,14 @@ async def get_predicted_pages(id: str, db=Depends(get_db)):
 
 @router.get("/{id}/file/{scan_id}", response_class=Response)
 async def get_scanfile(id: str, scan_id: str, db=Depends(get_db)):
-    """Get file of a specific scan."""
+    """Gets image of a specific scan.
+
+    Returns:
+        Response: Image file response.
+    """
+    if not ObjectId.is_valid(id):
+        raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
+
     scan = await db.titles.find_one(
         {"pages._id": ObjectId(scan_id), "_id": ObjectId(id)},
         {"pages": {"$elemMatch": {"_id": ObjectId(scan_id)}}},
@@ -166,7 +236,14 @@ async def get_scanfile(id: str, scan_id: str, db=Depends(get_db)):
 
 @router.patch("/{id}/update-pages")
 async def update_pages(id: str, scans: list[ScanUpdate], db=Depends(get_db)):
-    """Update user edited crop instructions for a specific file (scan)."""
+    """Updates predicted coordinates with user input for a given title ID.
+
+    Returns:
+        dict: Title ID.
+    """
+    if not ObjectId.is_valid(id):
+        raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
+
     current_state = await get_title_state(id, db)
     if current_state not in [TaskState.ready, TaskState.user_approved]:
         raise HTTPException(
@@ -190,7 +267,10 @@ async def update_pages(id: str, scans: list[ScanUpdate], db=Depends(get_db)):
 
 @router.delete("/{id}")
 async def delete_title(id: str, db=Depends(get_db)):
-    """Delete a title and all associated data."""
+    """Deletes a title and all associated saved files."""
+    if not ObjectId.is_valid(id):
+        raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
+
     title = await db.titles.find_one({"_id": ObjectId(id)})
     if not title:
         raise HTTPException(404, "Title not found")
@@ -206,3 +286,14 @@ async def delete_title(id: str, db=Depends(get_db)):
         except Exception as e:
             raise HTTPException(500, f"Failed to delete volume for title {id}: {e}")
     return {"detail": "Title and associated scans deleted"}
+
+
+@router.get("/title-ids")
+async def get_title_ids(db=Depends(get_db)):
+    """Gets all title IDs from the database.
+
+    Returns:
+        list: List of title IDs.
+    """
+    titles = await db.titles.find({}, {"_id": 1}).to_list(None)
+    return [str(title["_id"]) for title in titles]

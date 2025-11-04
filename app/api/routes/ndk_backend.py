@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
-from app.api.deps import get_db
+from app.api.deps import get_db, require_token
 from app.api.utils import format_page_data_flat
 from app.db.schemas import Scan, TaskState, Title, TitleCreate
 from starlette.responses import RedirectResponse
 from pymongo.errors import DuplicateKeyError
 from app.tasks.workflows.workflow_mongo import autocrop_workflow
 
-router = APIRouter(prefix="/ndk", tags=["ndk"])
+router = APIRouter(prefix="/ndk", tags=["ndk"], dependencies=[Depends(require_token)])
 
 
 @router.post("/create")
