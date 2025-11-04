@@ -17,7 +17,8 @@ def flag_missing_pages(scans: list[Scan]) -> list[Scan]:
     if single_pages / len(page_counts) < 0.3:
         for scan in scans:
             if len(scan.predicted_pages) == 1:
-                scan.flags += [Anomaly.missing_page]
+                for page in scan.predicted_pages:
+                    page.flags += [Anomaly.missing_page]
     return scans
 
 
@@ -33,7 +34,7 @@ def flag_low_confidence(scans: list[Scan], threshold: float = 0.5) -> list[Scan]
     for scan in scans:
         for page in scan.predicted_pages:
             if page.confidence < threshold:
-                scan.flags += [Anomaly.low_confidence]
+                page.flags += [Anomaly.low_confidence]
     return scans
 
 
@@ -55,5 +56,5 @@ def flag_ratio_anomalies(scans: list[Scan]) -> list[Scan]:
             if (page.width / page.height) < (average - 2 * stddev) or (
                 page.width / page.height
             ) > (average + 2 * stddev):
-                scan.flags += [Anomaly.aspect_ratio]
+                page.flags += [Anomaly.aspect_ratio]
     return scans

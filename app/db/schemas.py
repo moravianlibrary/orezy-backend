@@ -66,6 +66,7 @@ class Page(BaseModelWithId):
     confidence: float = 0
     angle: float = 0
     type: str | None = None
+    flags: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def round_values(cls, values):
@@ -79,7 +80,6 @@ class Page(BaseModelWithId):
 
 class Scan(BaseModelWithId):
     filename: str
-    flags: list[str] = Field(default_factory=list)
     predicted_pages: list[Page] = Field(default_factory=list)
     user_edited_pages: list[Page] | None = None
 

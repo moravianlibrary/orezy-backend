@@ -35,10 +35,12 @@ def format_page_data_list(scans: list[Scan]) -> list[dict]:
             edited = False
             pages = scan.predicted_pages
 
+        flags = set([flag for page in scan.predicted_pages for flag in page.flags])
+
         formatted_scans.append(
             {
                 "_id": str(scan.id),
-                "flags": set(scan.flags),
+                "flags": flags,
                 "pages": jsonable_encoder(pages, exclude={"confidence"}),
                 "edited": edited,
             }
@@ -47,12 +49,14 @@ def format_page_data_list(scans: list[Scan]) -> list[dict]:
 
 
 def format_predicted(scans: list[Scan]) -> list[dict]:
+    """Formats scans with ML generated pages only."""
     formatted_scans = []
     for scan in scans:
+        flags = set([flag for page in scan.predicted_pages for flag in page.flags])
         formatted_scans.append(
             {
                 "_id": str(scan.id),
-                "flags": set(scan.flags),
+                "flags": flags,
                 "pages": jsonable_encoder(scan.predicted_pages, exclude={"confidence"}),
             }
         )
