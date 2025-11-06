@@ -69,7 +69,7 @@ services:
       - .env
     #environment:
     #  PYTHONUNBUFFERED: "1"
-    #  MONGODB_URI: "mongodb://autocrop-db-user:VMewZTMoqMRzzxq2@mongo-db:27017/mydb?authSource=admin"
+    #  MONGODB_URI: "mongodb://autocrop-db-user:VMewZTMoqMRzzxq2@mongo-db:27017/crop-db?authSource=admin"
     #  MONGODB_DB: "mydb"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8000/healthz || exit 1"]

@@ -6,9 +6,11 @@ services:
     command: postgres -c 'max_connections=1000'
     restart: always
     hostname: "postgres"
+    env_file:
+      - .hatchet-user-env
     environment:
       - POSTGRES_USER=hatchet
-      - POSTGRES_PASSWORD=aRXqpv5Ol0Kq9GEX
+      - POSTGRES_PASSWORD=o5T9P1w1B4xsA3PerOC3Q6BdOBqsPXjiQqePvfFG8YmOGwxTfzdyg1zOZehAt9cE
       - POSTGRES_DB=hatchet
     ports:
       - "5435:5432"
@@ -26,9 +28,11 @@ services:
     ports:
       - "5673:5672" # RabbitMQ
       - "15673:15672" # Management UI
+    env_file:
+      - .hatchet-user-env
     environment:
       RABBITMQ_DEFAULT_USER: "user-ar1HnF5kQrBNlFCG"
-      RABBITMQ_DEFAULT_PASS: "6wIx4cU0mtZ1nAMQ"
+      RABBITMQ_DEFAULT_PASS: "MD6vTfxzkUtPvaCShcS4XBvytSB23i8izxV9k28ZTJRCkzkxOsq9pZiEXCyziqD1"
     volumes:
       - "hatchet_rabbitmq_data:/var/lib/rabbitmq"
       - "hatchet_rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf" # Configuration file mount
@@ -40,17 +44,21 @@ services:
   migration:
     image: ghcr.io/hatchet-dev/hatchet/hatchet-migrate:latest
     command: /hatchet/hatchet-migrate
+    env_file:
+      - .hatchet-user-env
     environment:
-      DATABASE_URL: "postgresql://hatchet:aRXqpv5Ol0Kq9GEX@postgres:5432/hatchet?sslmode=disable"
+      DATABASE_URL: "postgresql://hatchet:o5T9P1w1B4xsA3PerOC3Q6BdOBqsPXjiQqePvfFG8YmOGwxTfzdyg1zOZehAt9cE@postgres:5432/hatchet?sslmode=disable"
     depends_on:
       postgres:
         condition: service_healthy
   setup-config:
     image: ghcr.io/hatchet-dev/hatchet/hatchet-admin:latest
     command: /hatchet/hatchet-admin quickstart --skip certs --generated-config-dir /hatchet/config --overwrite=false
+    env_file:
+      - .hatchet-user-env
     environment:
-      DATABASE_URL: "postgresql://hatchet:aRXqpv5Ol0Kq9GEX@postgres:5432/hatchet?sslmode=disable"
-      SERVER_MSGQUEUE_RABBITMQ_URL: amqp://user-ar1HnF5kQrBNlFCG:6wIx4cU0mtZ1nAMQ@rabbitmq:5672/
+      DATABASE_URL: postgresql://hatchet:o5T9P1w1B4xsA3PerOC3Q6BdOBqsPXjiQqePvfFG8YmOGwxTfzdyg1zOZehAt9cE@postgres:5432/hatchet?sslmode=disable
+      SERVER_MSGQUEUE_RABBITMQ_URL: amqp://user-ar1HnF5kQrBNlFCG:MD6vTfxzkUtPvaCShcS4XBvytSB23i8izxV9k28ZTJRCkzkxOsq9pZiEXCyziqD1@rabbitmq:5672/
       SERVER_AUTH_COOKIE_DOMAIN: localhost:8080
       SERVER_AUTH_COOKIE_INSECURE: "t"
       SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
@@ -81,8 +89,10 @@ services:
       - "7070:7070"
     expose:
       - "7070"
+    env_file:
+      - .hatchet-user-env
     environment:
-      DATABASE_URL: "postgresql://hatchet:aRXqpv5Ol0Kq9GEX@postgres:5432/hatchet?sslmode=disable"
+      DATABASE_URL: "postgresql://hatchet:o5T9P1w1B4xsA3PerOC3Q6BdOBqsPXjiQqePvfFG8YmOGwxTfzdyg1zOZehAt9cE@postgres:5432/hatchet?sslmode=disable"
       SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
       SERVER_GRPC_INSECURE: "t"
     volumes:
@@ -93,6 +103,8 @@ services:
     command: sh ./entrypoint.sh --config /hatchet/config
     ports:
       - 8080:80
+    env_file:
+      - .hatchet-user-env
     restart: on-failure
     depends_on:
       setup-config:
@@ -100,7 +112,7 @@ services:
       migration:
         condition: service_completed_successfully
     environment:
-      DATABASE_URL: "postgres://hatchet:aRXqpv5Ol0Kq9GEX@postgres:5432/hatchet"
+      DATABASE_URL: "postgres://hatchet:o5T9P1w1B4xsA3PerOC3Q6BdOBqsPXjiQqePvfFG8YmOGwxTfzdyg1zOZehAt9cE@postgres:5432/hatchet"
     volumes:
       - hatchet_certs:/hatchet/certs
       - hatchet_config:/hatchet/config
@@ -111,18 +123,18 @@ services:
     restart: always
     environment:
       MONGO_INITDB_ROOT_USERNAME: autocrop-db-user
-      MONGO_INITDB_ROOT_PASSWORD: VMewZTMoqMRzzxq2
+      MONGO_INITDB_ROOT_PASSWORD: px2GsyO6HHEwbtWvmP4HEQHwXv7cAmzoQ4Xks8X171w4doQ5CHrGBXRG897B8ZXg
     ports:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
   
   api:  # FastAPI backend
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: auto-crop-ml:uv
-    #image: ghcr.io/nvtnlucie/orezy-api-demo:latest
+    #build:
+    #  context: .
+    #  dockerfile: Dockerfile
+    #image: auto-crop-ml:uv
+    image: ghcr.io/nvtnlucie/trinera-autocrop:latest
     depends_on:
       mongo-db:
         condition: service_started
@@ -132,10 +144,10 @@ services:
     env_file:
       - .worker-env
     environment:
-      MONGODB_URI: "mongodb://autocrop-db-user:VMewZTMoqMRzzxq2@mongo-db:27017/mydb?authSource=admin"
+      MONGODB_URI: "mongodb://autocrop-db-user:px2GsyO6HHEwbtWvmP4HEQHwXv7cAmzoQ4Xks8X171w4doQ5CHrGBXRG897B8ZXg@mongo-db:27017/mydb?authSource=admin"
       MONGODB_DB: "mydb"
       SCANS_VOLUME_PATH: "/upload_data"
-      WEBAPP_TOKEN: "kMOOcWBTqS8OpPTy"
+      WEBAPP_TOKEN: "2fMRGgdFqWG1xJdPoiyVT6hKuwxKe2JmimxPbDtrmrpOUuW86uLwdGurVDxLPjPT"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8000/healthz || exit 1"]
       interval: 60s
@@ -147,7 +159,8 @@ services:
       - scan_data:/upload_data
 
   worker:
-    image: auto-crop-ml:uv
+    #image: auto-crop-ml:uv
+    image: ghcr.io/nvtnlucie/trinera-autocrop:latest
     depends_on:
       api:
         condition: service_started
@@ -157,12 +170,10 @@ services:
     env_file:
       - .worker-env
     environment:
-      MONGODB_URI: "mongodb://autocrop-db-user:VMewZTMoqMRzzxq2@mongo-db:27017/mydb?authSource=admin"
+      MONGODB_URI: "mongodb://autocrop-db-user:px2GsyO6HHEwbtWvmP4HEQHwXv7cAmzoQ4Xks8X171w4doQ5CHrGBXRG897B8ZXg@mongo-db:27017/mydb?authSource=admin"
       MONGODB_DB: "mydb"
     restart: unless-stopped
     volumes:
-       # - yolo_cache:/root/.cache/torch
-       # - yolo_ultralytics:/root/.config/Ultralytics
        - scan_data:/upload_data
 
 volumes:
@@ -172,6 +183,4 @@ volumes:
   hatchet_config:
   hatchet_certs:
   mongo_data:
-  # yolo_cache:
-  # yolo_ultralytics:
   scan_data:

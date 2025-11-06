@@ -10,5 +10,6 @@ wheels/
 # Environment
 .venv
 .env
+.hatchet-user-env
 .worker-env
 launch.json

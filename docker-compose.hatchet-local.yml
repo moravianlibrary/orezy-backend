@@ -4,10 +4,12 @@ services:
     image: postgres:15.6
     command: postgres -c 'max_connections=200'
     restart: always
+    env_file:
+      - .hatchet-user-env
     environment:
-      - POSTGRES_USER=hatchet
-      - POSTGRES_PASSWORD=aRXqpv5Ol0Kq9GEX
-      - POSTGRES_DB=hatchet
+      POSTGRES_USER: hatchet
+      POSTGRES_PASSWORD: o5T9P1w1B4xsA3PerOC3Q6BdOBqsPXjiQqePvfFG8YmOGwxTfzdyg1zOZehAt9cE
+      POSTGRES_DB: hatchet
     volumes:
       - hatchet_lite_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -25,8 +27,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    env_file:
+      - .hatchet-user-env
     environment:  # sampled from https://docs.hatchet.run/self-hosting/hatchet-lite
-      DATABASE_URL: "postgresql://hatchet:aRXqpv5Ol0Kq9GEX@postgres:5432/hatchet?sslmode=disable"
+      DATABASE_URL: "postgresql://hatchet:o5T9P1w1B4xsA3PerOC3Q6BdOBqsPXjiQqePvfFG8YmOGwxTfzdyg1zOZehAt9cE@postgres:5432/hatchet?sslmode=disable"
       SERVER_AUTH_COOKIE_DOMAIN: localhost
       SERVER_AUTH_COOKIE_INSECURE: "t"
       SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
@@ -38,6 +42,7 @@ services:
       SERVER_DEFAULT_ENGINE_VERSION: "V1"
       SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS: localhost:7077
       HATCHET_CLIENT_TLS_STRATEGY: none
+
     volumes:
       - "hatchet_lite_config:/config"
 
