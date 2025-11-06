@@ -252,6 +252,13 @@ async def update_pages(id: str, scans: list[ScanUpdate], db=Depends(get_db)):
 
     for scan in scans:
         pages = [page.model_dump(by_alias=True) for page in scan.pages]
+
+        if len(pages) == 1:
+            pages[0]["type"] = "single"
+        elif len(pages) == 2:
+            pages[0]["type"] = "left"
+            pages[1]["type"] = "right"
+
         result = await db.titles.update_one(
             {"_id": ObjectId(id), "pages._id": scan.id},
             {
