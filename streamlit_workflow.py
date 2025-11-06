@@ -10,11 +10,12 @@ from app.db.schemas import TaskState
 
 
 def show_results(results):
-    for filename, page_data in results:
-        im = cv2.imread(filename)
+    for filepath, scan_data in results:
+        im = cv2.imread(filepath)
+        im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
         h, w = im.shape[0], im.shape[1]
 
-        for page in page_data["pages"]:
+        for page in scan_data["pages"]:
             (xc, yc, ww, hh) = denormalize_bbox(
                 (page["xc"], page["yc"], page["width"], page["height"]),
                 w,
@@ -33,6 +34,7 @@ def show_results(results):
 
 
 def main():
+    headers = {"Authorization": f"Bearer {os.getenv('WEBAPP_TOKEN')}"}
     st.title("Autocrop workflow demo")
 
     filepath = st.text_input(
@@ -55,6 +57,7 @@ def main():
                 json={
                     "filelist": filepaths,
                 },
+                headers=headers,
             )
             result = response.json()
             st.write(result)
@@ -65,7 +68,8 @@ def main():
                 st.info(f"Current state: {result['state']}")
                 time.sleep(10)
                 response = requests.get(
-                    f"http://localhost:8000/ndk/{result['id']}/status"
+                    f"http://localhost:8000/ndk/{result['id']}/status",
+                    headers=headers,
                 )
                 result = response.json()
 
@@ -76,7 +80,8 @@ def main():
             # Get all tramsformation instructions
             st.success("All images processed successfully.")
             response = requests.get(
-                f"http://localhost:8000/webapp/{result['id']}/pages"
+                f"http://localhost:8000/{result['id']}/all-scans",
+                headers=headers,
             )
             results = response.json()
 

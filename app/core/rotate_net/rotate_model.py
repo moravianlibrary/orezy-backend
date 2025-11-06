@@ -44,7 +44,7 @@ def rotate_pages(
         angle_max=10.0,
     )
     loader = DataLoader(
-        df, batch_size=32, shuffle=False, num_workers=4, pin_memory=True
+        df, batch_size=16, shuffle=False, num_workers=0, pin_memory=True
     )
     preds = model.predict_angles(loader)
 

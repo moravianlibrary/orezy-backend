@@ -1,4 +1,5 @@
 import secrets
+import certifi
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic_settings import BaseSettings
@@ -40,7 +41,7 @@ async def lifespan(app):
         settings.mongodb_uri,
         serverSelectionTimeoutMS=5000,
         uuidRepresentation="standard",
-        # tlsCAFile=certifi.where(),
+        tlsCAFile=certifi.where(),
     )
     await client.admin.command("ping")
 

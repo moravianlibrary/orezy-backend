@@ -6,8 +6,8 @@ from app.db.schemas import TaskState
 
 
 app = FastAPI(title="AutoCrop API", lifespan=lifespan)
-app.include_router(ndk_backend.router)
 app.include_router(webapp_backend.router)
+app.include_router(ndk_backend.router)
 
 
 def custom_openapi():

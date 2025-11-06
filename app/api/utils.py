@@ -5,7 +5,7 @@ from app.db.schemas import Scan
 def format_page_data_flat(scans: list[Scan]) -> list[dict]:
     """Overrides predicted pages with user edited pages if available, flattens the list."""
     formatted_pages = []
-    for scan in scans:
+    for scan in sorted(scans, key=lambda s: s.filename):
         pages = (
             scan.user_edited_pages if scan.user_edited_pages else scan.predicted_pages
         )
@@ -27,7 +27,7 @@ def format_page_data_flat(scans: list[Scan]) -> list[dict]:
 def format_page_data_list(scans: list[Scan]) -> list[dict]:
     """Overrides predicted pages with user edited pages if available."""
     formatted_scans = []
-    for scan in scans:
+    for scan in sorted(scans, key=lambda s: s.filename):
         if scan.user_edited_pages:
             edited = True
             pages = scan.user_edited_pages
@@ -51,7 +51,7 @@ def format_page_data_list(scans: list[Scan]) -> list[dict]:
 def format_predicted(scans: list[Scan]) -> list[dict]:
     """Formats scans with ML generated pages only."""
     formatted_scans = []
-    for scan in scans:
+    for scan in sorted(scans, key=lambda s: s.filename):
         flags = set([flag for page in scan.predicted_pages for flag in page.flags])
         formatted_scans.append(
             {
