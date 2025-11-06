@@ -9,7 +9,7 @@ from pydantic import (
     model_validator,
 )
 from datetime import datetime
-from typing import Annotated, Optional, Union
+from typing import Annotated, Union
 from enum import Enum
 
 
@@ -34,7 +34,7 @@ ObjectIdField = Annotated[
 class BaseModelWithId(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    id: Optional[ObjectIdField] = Field(default=ObjectId(), alias="_id")
+    id: ObjectIdField = Field(default_factory=ObjectId, alias="_id")
 
 
 class Anomaly(str, Enum):
