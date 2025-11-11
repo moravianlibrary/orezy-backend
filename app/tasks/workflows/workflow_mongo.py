@@ -1,5 +1,6 @@
 # > Create a workflow
 
+from datetime import timedelta
 import logging
 
 import certifi
@@ -37,7 +38,7 @@ logger = logging.getLogger("auto-crop-ml")
 autocrop_workflow = hatchet.workflow(name="autocrop-title-workflow")
 
 
-@autocrop_workflow.task()
+@autocrop_workflow.task(execution_timeout=timedelta(minutes=10))
 def crop(input: Title, ctx: Context):
     """Crops images in the input folder using the specified method."""
     current_state = db_get_state(input.id, _ensure_db())
@@ -59,7 +60,7 @@ def crop(input: Title, ctx: Context):
     return WorkflowOutput(results=result)
 
 
-@autocrop_workflow.task(parents=[crop])
+@autocrop_workflow.task(parents=[crop], execution_timeout=timedelta(minutes=10))
 def rotate(input: EmptyModel, ctx: Context):
     """Rotates images based on detected bounding boxes."""
     previous_result = WorkflowOutput(results=ctx.task_output(crop)["results"])
@@ -72,7 +73,7 @@ def rotate(input: EmptyModel, ctx: Context):
     return WorkflowOutput(results=result)
 
 
-@autocrop_workflow.task(parents=[rotate])
+@autocrop_workflow.task(parents=[rotate], execution_timeout=timedelta(minutes=5))
 def detect_anomalies(input: EmptyModel, ctx: Context):
     """Detects potential mistakes in the processed images."""
     previous_result = WorkflowOutput(results=ctx.task_output(rotate)["results"])
