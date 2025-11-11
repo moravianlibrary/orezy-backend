@@ -1,4 +1,4 @@
-FROM ghcr.io/trinera/orezy-backend-base AS base
+FROM ghcr.io/trineracz/orezy-backend-base AS base
 
 # Copy source code
 COPY app /src/app/
