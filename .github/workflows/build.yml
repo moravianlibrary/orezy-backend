@@ -87,11 +87,11 @@ jobs:
       matrix:
         include:
           - image: ${{ needs.set_variables.outputs.docker_image_base }}
-            dockerfile: Dockerfile
+            dockerfile: Dockerfile.base
           - image: ${{ needs.set_variables.outputs.docker_image_api }}
-            dockerfile: app/api/Dockerfile
+            dockerfile: Dockerfile
           - image: ${{ needs.set_variables.outputs.docker_image_worker }}
-            dockerfile: app/tasks/Dockerfile
+            dockerfile: Dockerfile
     steps:
       - uses: actions/checkout@v4
 
