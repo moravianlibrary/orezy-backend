@@ -48,14 +48,15 @@ class AngleDegModel(nn.Module):
         feats = self.backbone(x)
         return self.head(feats)  # (B,1)
 
-    def predict_angles(self, loader: DataLoader) -> np.ndarray:
-        """Predict angles for all images in data loader."""
-        self.to(self.device)
-        self.eval()
-        preds = []
-        with torch.no_grad():
-            for imgs, _, _ in tqdm(loader, desc="Predict rotation", leave=False):
-                imgs = imgs.to(self.device, non_blocking=True)
-                outputs = self(imgs)
-                preds.append(outputs.detach().cpu().numpy().reshape(-1))
-        return np.concatenate(preds)
+
+def predict_angles(model, loader: DataLoader) -> np.ndarray:
+    """Predict angles for all images in data loader."""
+    model.to(model.device)
+    model.eval()
+    preds = []
+    with torch.no_grad():
+        for imgs, _, _ in tqdm(loader, desc="Predict rotation", leave=False):
+            imgs = imgs.to(model.device, non_blocking=True)
+            outputs = model(imgs)
+            preds.append(outputs.detach().cpu().numpy().reshape(-1))
+    return np.concatenate(preds)

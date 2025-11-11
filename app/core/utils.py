@@ -131,6 +131,6 @@ def assign_page_type(scan: Scan) -> Scan:
         scan.predicted_pages = sorted(scan.predicted_pages, key=lambda d: d.xc)
         scan.predicted_pages[0].type = "left"
         scan.predicted_pages[1].type = "right"
-    else:
+    elif len(scan.predicted_pages) == 1:
         scan.predicted_pages[0].type = "single"
     return scan

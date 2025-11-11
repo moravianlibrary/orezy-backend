@@ -1,7 +1,7 @@
 import math
 import logging
 from app.core.rotate_net.dataset import PageAngleDataset
-from app.core.rotate_net.network import AngleDegModel
+from app.core.rotate_net.network import AngleDegModel, predict_angles
 from torch.utils.data import DataLoader
 from app.db.schemas import Scan
 
@@ -46,7 +46,7 @@ def rotate_pages(
     loader = DataLoader(
         df, batch_size=16, shuffle=False, num_workers=0, pin_memory=True
     )
-    preds = model.predict_angles(loader)
+    preds = predict_angles(model, loader)
 
     # Update Scan results with predicted angles, rescale box ratio
     idx = 0
