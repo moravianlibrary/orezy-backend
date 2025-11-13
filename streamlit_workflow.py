@@ -31,6 +31,7 @@ def show_results(results):
             )
 
         st.image(im, width=600)
+        st.write("Page flags:", [page["flags"] for page in scan_data["pages"]])
 
 
 def main():

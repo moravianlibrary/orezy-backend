@@ -38,9 +38,11 @@ class BaseModelWithId(BaseModel):
 
 
 class Anomaly(str, Enum):
-    missing_page = "missing_page"
+    page_count_mismatch = "page_count_mismatch"
     low_confidence = "low_confidence"
-    aspect_ratio = "aspect_ratio_anomaly"
+    dimensions = "odd_dimensions"
+    prediction_error = "no_prediction"
+    prediction_overlap = "prediction_overlap"
 
 
 class TaskState(str, Enum):

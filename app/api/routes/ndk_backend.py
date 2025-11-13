@@ -19,7 +19,9 @@ async def create_title(title_data: TitleCreate, db=Depends(get_db)):
             doc["external_id"] = str(doc["_id"])
         await db.titles.insert_one(doc)
     except DuplicateKeyError:
-        raise HTTPException(400, "Title with this external_id already exists", doc["external_id"])
+        raise HTTPException(
+            400, "Title with this external_id already exists", doc["external_id"]
+        )
     except Exception as e:
         raise HTTPException(400, f"Invalid title data: {e}")
 
@@ -82,7 +84,8 @@ async def mark_completed(external_id: str, db=Depends(get_db)):
     current_state = await get_title_state(external_id, db)
     if current_state in [TaskState.ready, TaskState.user_approved]:
         raise HTTPException(
-            400, f"Title is not in an acceptable state (ready, approved), current state: {current_state}"
+            400,
+            f"Title is not in an acceptable state (ready, approved), current state: {current_state}",
         )
 
     await db.titles.update_one(

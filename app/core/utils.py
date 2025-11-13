@@ -40,22 +40,21 @@ def bbox_union(boxes: np.ndarray) -> np.ndarray:
     return np.array([min_x, min_y, max_x, max_y], np.int32)
 
 
-def bbox_intersection(boxes: np.ndarray, intersect_with_box: np.ndarray) -> np.ndarray:
+def bbox_intersection(box: np.ndarray, intersect_with_box: np.ndarray) -> np.ndarray:
     """Returns boxes that intersect with a given bounding box.
 
     Args:
-        boxes (numpy.ndarray): Array of bounding boxes with shape (N, 4).
+        box (numpy.ndarray): Bounding box to check intersection with [x1, y1, x2, y2].
         intersect_with_box (numpy.ndarray): Bounding box to check intersection with [x1, y1, x2, y2].
     Returns:
         numpy.ndarray: Boxes that intersect with the given box.
     """
-    x1, y1, x2, y2 = intersect_with_box
-    return boxes[
-        (boxes[:, 0] >= x1)
-        & (boxes[:, 1] >= y1)
-        & (boxes[:, 2] <= x2)
-        & (boxes[:, 3] <= y2)
-    ]
+    box_x1 = np.maximum(box[0], intersect_with_box[0])
+    box_y1 = np.maximum(box[1], intersect_with_box[1])
+    box_x2 = np.minimum(box[2], intersect_with_box[2])
+    box_y2 = np.minimum(box[3], intersect_with_box[3])
+    intersecting_boxes = box[(box_x1 < box_x2) & (box_y1 < box_y2)]
+    return intersecting_boxes
 
 
 def bbox_size(box: np.ndarray) -> np.ndarray:

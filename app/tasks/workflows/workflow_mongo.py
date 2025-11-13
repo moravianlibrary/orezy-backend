@@ -9,9 +9,11 @@ from app.core.rotate_net.rotate_model import rotate_pages
 from app.db.operations import db_get_state, db_update_task_state, db_add_pages_bulk
 from app.db.schemas import TaskState, Title, WorkflowOutput
 from app.core.anomalies import (
+    flag_dimensions_anomalies,
     flag_low_confidence,
     flag_missing_pages,
-    flag_ratio_anomalies,
+    flag_prediction_errors,
+    flag_prediction_overlaps,
 )
 from app.core.yolo_crop.crop_model import crop_images_inner, crop_images_outer
 from app.tasks.hatchet_client import hatchet
@@ -81,7 +83,9 @@ def detect_anomalies(input: EmptyModel, ctx: Context):
 
     result = flag_missing_pages(previous_result.results)
     result = flag_low_confidence(result)
-    result = flag_ratio_anomalies(result)
+    result = flag_dimensions_anomalies(result)
+    result = flag_prediction_errors(result)
+    result = flag_prediction_overlaps(result)
 
     db_add_pages_bulk(title_id, result, _ensure_db())
     db_update_task_state(title_id, TaskState.ready, _ensure_db())

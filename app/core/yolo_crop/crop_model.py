@@ -62,8 +62,6 @@ def crop_images_outer(filelist: list[str]) -> list[Scan]:
         results.append(scan)
 
         logger.info(f"Cropped image {file} to box: {outer_box}")
-
-    results = append_missing_pages(results, filelist)
     return results
 
 
@@ -121,29 +119,4 @@ def crop_images_inner(
             scan = assign_page_type(scan)
             results.append(scan)
 
-    results = append_missing_pages(results, filelist)
-    return results
-
-
-def append_missing_pages(results: list[Scan], filelist: list[str]) -> list[Scan]:
-    """Appends entries for files not detected by the algorithm.
-
-    Args:
-        results (list): List of Scan objects from the detection algorithm.
-        filelist (list): List of all image file paths in the input folder.
-    Returns:
-        list: Updated list of Scan objects including undetected files.
-    """
-    detected_paths = {res.filename for res in results}
-    for file in filelist:
-        if file not in detected_paths:
-            results.predicted_pages.append(
-                Page(
-                    xc=0.5,
-                    yc=0.5,
-                    width=1.0,
-                    height=1.0,
-                    confidence=0.0,
-                )
-            )
     return results

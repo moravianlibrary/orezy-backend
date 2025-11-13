@@ -1,4 +1,6 @@
-from app.db.schemas import Anomaly, Scan
+import numpy as np
+from app.core.utils import bbox_intersection, cxywh_to_xyxy
+from app.db.schemas import Anomaly, Page, Scan
 
 
 def flag_missing_pages(scans: list[Scan]) -> list[Scan]:
@@ -18,11 +20,11 @@ def flag_missing_pages(scans: list[Scan]) -> list[Scan]:
         for scan in scans:
             if len(scan.predicted_pages) == 1:
                 for page in scan.predicted_pages:
-                    page.flags += [Anomaly.missing_page]
+                    page.flags += [Anomaly.page_count_mismatch]
     return scans
 
 
-def flag_low_confidence(scans: list[Scan], threshold: float = 0.5) -> list[Scan]:
+def flag_low_confidence(scans: list[Scan], threshold: float = 0.7) -> list[Scan]:
     """Adds a flag when the model confidence is below a threshold.
 
     Args:
@@ -38,23 +40,94 @@ def flag_low_confidence(scans: list[Scan], threshold: float = 0.5) -> list[Scan]
     return scans
 
 
-def flag_ratio_anomalies(scans: list[Scan]) -> list[Scan]:
-    """Adds a flag when the width/height ratio is outside standard deviation.
+def flag_dimensions_anomalies(scans: list[Scan]) -> list[Scan]:
+    """Adds a flag when:
+    - the width/height ratio is outside standard deviation.
+    - the bbox square sum is outside standard deviation.
 
     Args:
         scans (list[Scan]): List of detected scans.
     Returns:
         list[Scan]: List of detected pages with flags.
     """
-    pages = [page for scan in scans for page in scan.predicted_pages]
-    ratios = [p.width / p.height for p in pages]
-    average = sum(ratios) / len(ratios)
-    stddev = (sum((x - average) ** 2 for x in ratios) / len(ratios)) ** 0.5
+    areas, ratios = [], []
+    for scan in scans:
+        for page in scan.predicted_pages:
+            ratios.append(page.width / page.height)
+        area = sum(page.width * page.height for page in scan.predicted_pages)
+        areas.append(area)
+
+    # Calculate average and stddev of bbox areas
+    area_avg = sum(areas) / len(areas)
+    area_stddev = (sum((x - area_avg) ** 2 for x in areas) / len(areas)) ** 0.5
+
+    # Calculate average and stddev of width/height ratios
+    ratio_average = sum(ratios) / len(ratios)
+    ratio_stddev = (sum((x - ratio_average) ** 2 for x in ratios) / len(ratios)) ** 0.5
 
     for scan in scans:
         for page in scan.predicted_pages:
-            if (page.width / page.height) < (average - 2 * stddev) or (
-                page.width / page.height
-            ) > (average + 2 * stddev):
-                page.flags += [Anomaly.aspect_ratio]
+            local_ratio = page.width / page.height
+            local_area = sum(page.width * page.height for page in scan.predicted_pages)
+            # Flag if outside stddev
+            if (
+                abs(local_ratio - ratio_average) > ratio_stddev
+                or abs(local_area - area_avg) > area_stddev
+            ):
+                page.flags += [Anomaly.dimensions]
+    return scans
+
+
+def flag_prediction_errors(scans: list[Scan]) -> list[Scan]:
+    """Adds a flag when no pages were detected in a scan. Appends blank page with error flag.
+
+    Args:
+        scans (list[Scan]): List of detected scans.
+    Returns:
+        list[Scan]: List of detected pages with flags.
+    """
+    for scan in scans:
+        if len(scan.predicted_pages) == 0:
+            scan.predicted_pages.append(
+                Page(
+                    xc=0.5,
+                    yc=0.5,
+                    width=1.0,
+                    height=1.0,
+                    confidence=0.0,
+                    flags=[Anomaly.prediction_error],
+                )
+            )
+    return scans
+
+
+def flag_prediction_overlaps(scans: list[Scan]) -> list[Scan]:
+    """Adds a flag when predicted pages overlap each other.
+
+    Args:
+        scans (list[Scan]): List of detected scans.
+
+    Returns:
+        list[Scan]: List of detected pages with flags.
+    """
+    for scan in scans:
+        if len(scan.predicted_pages) < 2:
+            continue
+
+        boxes = np.array(
+            [
+                cxywh_to_xyxy(
+                    int(
+                        page.xc * 1000
+                    ),  # multiply by arbitrary constant to avoid float precision issues
+                    int(page.yc * 1000),
+                    int(page.width * 1000),
+                    int(page.height * 1000),
+                )
+                for page in scan.predicted_pages
+            ]
+        )
+        if bbox_intersection(boxes[0], boxes[1]).size > 0:
+            for page in scan.predicted_pages:
+                page.flags += [Anomaly.prediction_overlap]
     return scans
