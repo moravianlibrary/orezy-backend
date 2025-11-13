@@ -31,7 +31,12 @@ _db = None
 def _ensure_db():
     global _client, _db
     if _db is None:
-        _client = MongoClient(settings.mongodb_uri, tlsCAFile=certifi.where())
+        if settings.tls_enabled:
+            _client = MongoClient(
+                settings.mongodb_uri, tlsCAFile=certifi.where()
+            )
+        else:
+            _client = MongoClient(settings.mongodb_uri)
         _db = _client.get_database(settings.mongodb_db)
     return _db
 

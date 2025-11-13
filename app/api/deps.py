@@ -11,6 +11,7 @@ import os
 class Settings(BaseSettings):
     mongodb_uri: str = os.getenv("MONGODB_URI")
     mongodb_db: str = os.getenv("MONGODB_DB")
+    tls_enabled: bool = os.getenv("ENABLE_TLS", "false").lower() in ("1", "true", "yes")
 
 
 settings = Settings()
@@ -37,12 +38,15 @@ def require_token(credentials: HTTPAuthorizationCredentials = Depends(bearer)):
 @asynccontextmanager
 async def lifespan(app):
     global client
-    client = AsyncMongoClient(
-        settings.mongodb_uri,
-        serverSelectionTimeoutMS=5000,
-        uuidRepresentation="standard",
-        tlsCAFile=certifi.where(),
-    )
+
+    client_kwargs = {
+        "serverSelectionTimeoutMS": 5000,
+        "uuidRepresentation": "standard",
+    }
+    if settings.tls_enabled:
+        client_kwargs["tlsCAFile"] = certifi.where()
+
+    client = AsyncMongoClient(settings.mongodb_uri, **client_kwargs)
     await client.admin.command("ping")
 
     db = get_db()

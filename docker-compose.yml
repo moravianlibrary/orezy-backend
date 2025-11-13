@@ -134,7 +134,7 @@ services:
     #  context: .
     #  dockerfile: Dockerfile
     #image: auto-crop-ml:uv
-    image: ghcr.io/nvtnlucie/trinera-autocrop:latest
+    image: ghcr.io/trineracz/orezy-backend-api:latest
     depends_on:
       mongo-db:
         condition: service_started
@@ -144,6 +144,7 @@ services:
     env_file:
       - .worker-env
     environment:
+      ENABLE_TLS: "false"
       MONGODB_URI: "mongodb://autocrop-db-user:px2GsyO6HHEwbtWvmP4HEQHwXv7cAmzoQ4Xks8X171w4doQ5CHrGBXRG897B8ZXg@mongo-db:27017/mydb?authSource=admin"
       MONGODB_DB: "mydb"
       SCANS_VOLUME_PATH: "/upload_data"
@@ -160,7 +161,7 @@ services:
 
   worker:
     #image: auto-crop-ml:uv
-    image: ghcr.io/nvtnlucie/trinera-autocrop:latest
+    image: ghcr.io/trineracz/orezy-backend-worker:latest
     depends_on:
       api:
         condition: service_started
@@ -170,6 +171,7 @@ services:
     env_file:
       - .worker-env
     environment:
+      ENABLE_TLS: "false"
       MONGODB_URI: "mongodb://autocrop-db-user:px2GsyO6HHEwbtWvmP4HEQHwXv7cAmzoQ4Xks8X171w4doQ5CHrGBXRG897B8ZXg@mongo-db:27017/mydb?authSource=admin"
       MONGODB_DB: "mydb"
     restart: unless-stopped
