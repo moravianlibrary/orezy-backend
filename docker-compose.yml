@@ -134,7 +134,7 @@ services:
     #  context: .
     #  dockerfile: Dockerfile
     #image: auto-crop-ml:uv
-    image: ghcr.io/trineracz/orezy-backend-api:latest
+    image: ghcr.io/nvtnlucie/trinera-autocrop:latest
     depends_on:
       mongo-db:
         condition: service_started
@@ -149,6 +149,7 @@ services:
       MONGODB_DB: "mydb"
       SCANS_VOLUME_PATH: "/upload_data"
       WEBAPP_TOKEN: "2fMRGgdFqWG1xJdPoiyVT6hKuwxKe2JmimxPbDtrmrpOUuW86uLwdGurVDxLPjPT"
+      WEBAPP_URL_CORS: "*"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8000/healthz || exit 1"]
       interval: 60s
@@ -161,7 +162,7 @@ services:
 
   worker:
     #image: auto-crop-ml:uv
-    image: ghcr.io/trineracz/orezy-backend-worker:latest
+    image: ghcr.io/nvtnlucie/trinera-autocrop:latest
     depends_on:
       api:
         condition: service_started

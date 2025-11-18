@@ -1,13 +1,24 @@
+import os
 from fastapi import FastAPI
 from app.api.routes import ndk_backend, webapp_backend
 from app.api.deps import lifespan
 from fastapi.openapi.utils import get_openapi
 from app.db.schemas import TaskState
+from fastapi.middleware.cors import CORSMiddleware
+
 
 
 app = FastAPI(title="AutoCrop API", lifespan=lifespan)
 app.include_router(webapp_backend.router)
 app.include_router(ndk_backend.router)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[os.getenv("WEBAPP_URL_CORS", "*")],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def custom_openapi():
