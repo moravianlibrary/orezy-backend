@@ -27,9 +27,11 @@ async def create_title(title_data: TitleCreate, db=Depends(get_db)):
     """
     try:
         # Create title entry in DB
-        title_dict = jsonable_encoder(title_data)
+        created_title = title_data.model_dump(by_alias=True)
+        title_dict = Title(**created_title).model_dump(by_alias=True)
         title_dict["state"] = "new"
         title_dict["filelist"] = []
+        title_dict["external_id"] = str(title_dict["_id"])
         result = await db.titles.insert_one(title_dict)
 
         # Create directory for scans
@@ -120,7 +122,7 @@ async def get_title_state(id: str, db=Depends(get_db)):
 
 
 @router.get("/{id}/all-scans")
-async def get_pages(id: str, db=Depends(get_db)):
+async def get_scans(id: str, db=Depends(get_db)):
     """Gets crop instructions for all pages.
 
     Returns:
@@ -134,6 +136,7 @@ async def get_pages(id: str, db=Depends(get_db)):
         raise HTTPException(404, "Title not found")
 
     scans = [Scan(**scan) for scan in title.get("pages", [])]
+    scans = sorted(scans, key=lambda s: s.filename)
     pages = format_page_data_list(scans)
 
     return pages
@@ -170,8 +173,8 @@ async def get_ok_scans(id: str, db=Depends(get_db)):
     if not ObjectId.is_valid(id):
         raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
 
-    pages = await get_pages(id, db)
-    ok_scans = [scan for scan in pages if not scan["flags"]]
+    all_scans = await get_scans(id, db)
+    ok_scans = [scan for scan in all_scans if not scan["flags"]]
     return ok_scans
 
 
@@ -185,8 +188,8 @@ async def get_flagged_scans(id: str, db=Depends(get_db)):
     if not ObjectId.is_valid(id):
         raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
 
-    pages = await get_pages(id, db)
-    flagged_scans = [scan for scan in pages if scan["flags"]]
+    all_scans = await get_scans(id, db)
+    flagged_scans = [scan for scan in all_scans if scan["flags"]]
     return flagged_scans
 
 
@@ -205,6 +208,7 @@ async def get_predicted_pages(id: str, db=Depends(get_db)):
         raise HTTPException(404, "Title not found")
 
     scans = [Scan(**scan) for scan in title.get("pages", [])]
+    scans = sorted(scans, key=lambda s: s.filename)
     scans = format_predicted(scans)
     return scans
 
