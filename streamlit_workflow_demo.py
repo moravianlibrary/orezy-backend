@@ -42,6 +42,8 @@ def main():
         "Scan filepath",
         "",
     )
+    use_inner = st.checkbox("Use outer crop method", value=False, help="When checked, crop_method will be set to 'outer'")
+    crop_method = "outer" if use_inner else "inner"
 
     if st.button("Generate crop boxes"):
         with st.spinner("Generating crop boxes..."):
@@ -57,6 +59,7 @@ def main():
                 "http://localhost:8000/ndk/create",
                 json={
                     "filelist": filepaths,
+                    "crop_method": crop_method,
                 },
                 headers=headers,
             )
@@ -81,7 +84,7 @@ def main():
             # Get all tramsformation instructions
             st.success("All images processed successfully.")
             response = requests.get(
-                f"http://localhost:8000/{result['id']}/all-scans",
+                f"http://localhost:8000/{result['id']}/scans",
                 headers=headers,
             )
             results = response.json()

@@ -162,18 +162,6 @@ class TestCoreUtils:
         
         assert result == (-0.25, 0.75, 0.25, 1.25)
 
-    def test_cxywh_norm_to_xyxy_precision(self):
-        """Test that floating point precision is maintained."""
-        result = cxywh_norm_to_xyxy(0.123456, 0.654321, 0.111111, 0.222222)
-        
-        expected = (
-            0.123456 - 0.111111/2,
-            0.654321 - 0.222222/2,
-            0.123456 + 0.111111/2,
-            0.654321 + 0.222222/2
-        )
-        assert result == expected
-
     # bbox_union tests
     def test_bbox_union_basic(self):
         """Test union of multiple bounding boxes."""

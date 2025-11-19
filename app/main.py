@@ -7,7 +7,7 @@ from app.db.schemas import TaskState
 from fastapi.middleware.cors import CORSMiddleware
 
 
-app = FastAPI(title="AutoCrop API", lifespan=lifespan)
+app = FastAPI(title="PageTrace API", lifespan=lifespan)
 app.include_router(webapp_backend.router)
 app.include_router(ndk_backend.router)
 
@@ -24,9 +24,9 @@ def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
     openapi_schema = get_openapi(
-        title="AutoCrop FastAPI",
+        title="PageTrace API",
         version="1.0.0",
-        description="NDK integration endpoints",
+        description="Frontend and NDK integration endpoints",
         routes=app.routes,
     )
     # Add a custom schema

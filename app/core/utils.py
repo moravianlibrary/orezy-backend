@@ -33,7 +33,7 @@ def cxywh_norm_to_xyxy(
     y1 = yc - h / 2
     x2 = xc + w / 2
     y2 = yc + h / 2
-    return x1, y1, x2, y2
+    return round(x1, 4), round(y1, 4), round(x2, 4), round(y2, 4)
 
 
 def bbox_union(boxes: np.ndarray) -> np.ndarray:

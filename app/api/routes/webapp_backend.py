@@ -213,7 +213,7 @@ async def get_predicted_pages(id: str, db=Depends(get_db)):
     if not title:
         raise HTTPException(404, "Title not found")
 
-    scans = [Scan(**scan) for scan in title.get("pages", [])]
+    scans = [Scan(**scan) for scan in title.get("scans", [])]
     scans = sorted(scans, key=lambda s: s.filename)
     scans = format_predicted(scans)
     return scans
@@ -257,7 +257,8 @@ async def get_thumbnail(id: str, scan_id: str, db=Depends(get_db)):
     scan = await db.titles.find_one(
         {"scans._id": ObjectId(scan_id), "_id": ObjectId(id)},
         {"scans": {"$elemMatch": {"_id": ObjectId(scan_id)}}},
-    )["scans"][0]
+    )
+    scan = scan["scans"][0]
     if not scan:
         raise HTTPException(404, "Scan not found")
 

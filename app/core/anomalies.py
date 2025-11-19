@@ -74,7 +74,7 @@ def flag_dimensions_anomalies(scans: list[Scan]) -> list[Scan]:
             # Flag if outside stddev
             if (
                 abs(local_ratio - ratio_average) > ratio_stddev
-                or abs(local_area - area_avg) > area_stddev
+                or abs(local_area - area_avg) > 2 * area_stddev
             ):
                 page.flags += [Anomaly.dimensions]
     return scans
