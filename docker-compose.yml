@@ -149,7 +149,7 @@ services:
       MONGODB_DB: "mydb"
       SCANS_VOLUME_PATH: "/upload_data"
       WEBAPP_TOKEN: "2fMRGgdFqWG1xJdPoiyVT6hKuwxKe2JmimxPbDtrmrpOUuW86uLwdGurVDxLPjPT"
-      WEBAPP_URL_CORS: "*"
+      WEBAPP_FRONTEND_URL: "*"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8000/healthz || exit 1"]
       interval: 60s

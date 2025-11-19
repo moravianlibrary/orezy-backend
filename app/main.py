@@ -7,14 +7,13 @@ from app.db.schemas import TaskState
 from fastapi.middleware.cors import CORSMiddleware
 
 
-
 app = FastAPI(title="AutoCrop API", lifespan=lifespan)
 app.include_router(webapp_backend.router)
 app.include_router(ndk_backend.router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv("WEBAPP_URL_CORS", "*")],
+    allow_origins=[os.getenv("WEBAPP_FRONTEND_URL", "*")],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -41,13 +41,13 @@ def db_create_title(title_data: Title, db):
     return {"title_id": str(result.inserted_id)}
 
 
-def db_add_pages_bulk(title_id: ObjectId, pages_data: list[Scan], db):
+def db_add_scans_bulk(title_id: ObjectId, pages_data: list[Scan], db):
     """Add multiple pages to a title."""
     docs = [page.model_dump(by_alias=True) for page in pages_data]
 
     db.titles.update_one(
         {"_id": ObjectId(title_id)},
-        {"$push": {"pages": {"$each": docs}}},
+        {"$push": {"scans": {"$each": docs}}},
     )
 
     logger.debug(f"Added {len(docs)} pages to title {title_id}")

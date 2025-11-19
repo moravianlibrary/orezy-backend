@@ -1,8 +1,11 @@
+import base64
 import os
+from typing import List
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
+from pydantic import BaseModel
 from app.api.deps import get_db, require_token
-from app.api.utils import format_page_data_list, format_predicted
+from app.api.utils import format_page_data_list, format_predicted, resize_image
 from app.db.schemas import (
     Scan,
     ScanUpdate,
@@ -11,7 +14,6 @@ from app.db.schemas import (
     TitleCreate,
 )
 from app.tasks.workflows.workflow_mongo import autocrop_workflow
-from fastapi.encoders import jsonable_encoder
 
 
 VOLUME_PATH = os.getenv("SCANS_VOLUME_PATH")
@@ -135,7 +137,7 @@ async def get_scans(id: str, db=Depends(get_db)):
     if not title:
         raise HTTPException(404, "Title not found")
 
-    scans = [Scan(**scan) for scan in title.get("pages", [])]
+    scans = [Scan(**scan) for scan in title.get("scans", [])]
     scans = sorted(scans, key=lambda s: s.filename)
     pages = format_page_data_list(scans)
 
@@ -153,13 +155,13 @@ async def get_pages_for_scan(id: str, scan_id: str, db=Depends(get_db)):
         raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
 
     scan = await db.titles.find_one(
-        {"pages._id": ObjectId(scan_id), "_id": ObjectId(id)},
-        {"pages": {"$elemMatch": {"_id": ObjectId(scan_id)}}},
+        {"scans._id": ObjectId(scan_id), "_id": ObjectId(id)},
+        {"scans": {"$elemMatch": {"_id": ObjectId(scan_id)}}},
     )
     if not scan:
         raise HTTPException(404, "Scan not found")
 
-    pages = format_page_data_list([Scan(**scan["pages"])])
+    pages = format_page_data_list([Scan(**scan["scans"])])
     return pages
 
 
@@ -224,10 +226,10 @@ async def get_scanfile(id: str, scan_id: str, db=Depends(get_db)):
         raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
 
     scan = await db.titles.find_one(
-        {"pages._id": ObjectId(scan_id), "_id": ObjectId(id)},
-        {"pages": {"$elemMatch": {"_id": ObjectId(scan_id)}}},
+        {"scans._id": ObjectId(scan_id), "_id": ObjectId(id)},
+        {"scans": {"$elemMatch": {"_id": ObjectId(scan_id)}}},
     )
-    scan = scan["pages"][0]
+    scan = scan["scans"][0]
     if not scan:
         raise HTTPException(404, "Scan not found")
 
@@ -236,6 +238,59 @@ async def get_scanfile(id: str, scan_id: str, db=Depends(get_db)):
     except Exception as e:
         raise HTTPException(500, f"Failed to read scan file: {e}")
     return Response(content=file, media_type="image/jpeg")
+
+
+class ImagesResponse(BaseModel):
+    images: List[str]
+
+
+@router.get("/{id}/thumbnails", response_model=ImagesResponse)
+async def get_thumbnails(id: str, db=Depends(get_db)):
+    """Gets thumbnails for all scans of a title.
+
+    Returns:
+        list: List of thumbnail image responses.
+    """
+    if not ObjectId.is_valid(id):
+        raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
+
+    title = await db.titles.find_one({"_id": ObjectId(id)})
+    if not title:
+        raise HTTPException(404, "Title not found")
+
+    thumbnails = []
+    for file_name in title["filelist"]:
+        try:
+            file = resize_image(file_name)
+            # convert to b64
+            file_b64 = base64.b64encode(file).decode("utf-8")
+            thumbnails.append(file_b64)
+        except Exception as e:
+            raise HTTPException(500, f"Failed to read thumbnail file: {e}")
+
+    return ImagesResponse(images=thumbnails)
+
+
+@router.get("/{id}/thumbnails/{scan_id}", response_model=ImagesResponse)
+async def get_thumbnail(id: str, scan_id: str, db=Depends(get_db)):
+    """Gets a thumbnail for a specific scan of a title.
+
+    Returns:
+        list: List of thumbnail image responses.
+    """
+    if not ObjectId.is_valid(id):
+        raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
+
+    scan = await db.titles.find_one(
+        {"scans._id": ObjectId(scan_id), "_id": ObjectId(id)},
+        {"scans": {"$elemMatch": {"_id": ObjectId(scan_id)}}},
+    )
+    scan = scan["scans"][0]
+    if not scan:
+        raise HTTPException(404, "Scan not found")
+
+    thumbnail = resize_image(scan["filename"])
+    return Response(content=thumbnail, media_type="image/jpeg")
 
 
 @router.patch("/{id}/update-pages")
@@ -264,10 +319,10 @@ async def update_pages(id: str, scans: list[ScanUpdate], db=Depends(get_db)):
             pages[1]["type"] = "right"
 
         result = await db.titles.update_one(
-            {"_id": ObjectId(id), "pages._id": scan.id},
+            {"_id": ObjectId(id), "scans._id": scan.id},
             {
                 "$set": {
-                    "pages.$.user_edited_pages": pages,
+                    "scans.$.user_edited_pages": pages,
                 }
             },
         )

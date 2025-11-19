@@ -6,7 +6,7 @@ import logging
 import certifi
 from pymongo import MongoClient
 from app.core.rotate_net.rotate_model import rotate_pages
-from app.db.operations import db_get_state, db_update_task_state, db_add_pages_bulk
+from app.db.operations import db_get_state, db_update_task_state, db_add_scans_bulk
 from app.db.schemas import TaskState, Title, WorkflowOutput
 from app.core.anomalies import (
     flag_dimensions_anomalies,
@@ -32,9 +32,7 @@ def _ensure_db():
     global _client, _db
     if _db is None:
         if settings.tls_enabled:
-            _client = MongoClient(
-                settings.mongodb_uri, tlsCAFile=certifi.where()
-            )
+            _client = MongoClient(settings.mongodb_uri, tlsCAFile=certifi.where())
         else:
             _client = MongoClient(settings.mongodb_uri)
         _db = _client.get_database(settings.mongodb_db)
@@ -92,7 +90,7 @@ def detect_anomalies(input: EmptyModel, ctx: Context):
     result = flag_prediction_errors(result)
     result = flag_prediction_overlaps(result)
 
-    db_add_pages_bulk(title_id, result, _ensure_db())
+    db_add_scans_bulk(title_id, result, _ensure_db())
     db_update_task_state(title_id, TaskState.ready, _ensure_db())
 
     # Serialize Pydantic objects

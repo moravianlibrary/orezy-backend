@@ -1,3 +1,5 @@
+import os
+from urllib.parse import urljoin
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_db, require_token
 from app.api.utils import format_page_data_flat
@@ -7,6 +9,8 @@ from pymongo.errors import DuplicateKeyError
 from app.tasks.workflows.workflow_mongo import autocrop_workflow
 
 router = APIRouter(prefix="/ndk", tags=["ndk"], dependencies=[Depends(require_token)])
+
+WEBAPP_URL = os.getenv("WEBAPP_FRONTEND_URL", "https://example.com")
 
 
 @router.post("/create")
@@ -58,7 +62,7 @@ async def open_webapp(external_id: str, db=Depends(get_db)):
             400, f"Title is not in a ready state, current state: {current_state}"
         )
 
-    return RedirectResponse(url="https://example.com", status_code=301)
+    return RedirectResponse(url=urljoin(WEBAPP_URL, external_id), status_code=301)
 
 
 @router.get("/{external_id}/coordinates")
@@ -69,7 +73,7 @@ async def get_coordinates(external_id: str, db=Depends(get_db)):
     if not title:
         raise HTTPException(404, "Title not found")
 
-    scans = [Scan(**scan) for scan in title.get("pages", [])]
+    scans = [Scan(**scan) for scan in title.get("scans", [])]
     pages = format_page_data_flat(scans)
 
     return {

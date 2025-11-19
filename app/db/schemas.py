@@ -76,7 +76,7 @@ class Page(BaseModelWithId):
         for field in ("xc", "yc", "width", "height", "confidence", "angle"):
             val = getattr(values, field, None)
             if isinstance(val, (int, float)):
-                setattr(values, field, round(val, 3))
+                setattr(values, field, round(val, 4))
         return values
 
 
@@ -118,7 +118,7 @@ class Title(BaseModelWithId):
     created_at: datetime = Field(default_factory=datetime.now)
     modified_at: datetime = Field(default_factory=datetime.now)
     state: TaskState = Field(default=TaskState.new)
-    pages: list[Scan] = Field(default_factory=list)
+    scans: list[Scan] = Field(default_factory=list)
 
     crop_type_code: str | None = None
     double_page: bool = False

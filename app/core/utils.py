@@ -25,6 +25,17 @@ def cxywh_to_xyxy(xc: int, yc: int, w: int, h: int) -> tuple[int, int, int, int]
     return x1, y1, x2, y2
 
 
+def cxywh_norm_to_xyxy(
+    xc: float, yc: float, w: float, h: float
+) -> tuple[float, float, float, float]:
+    """Converts bounding box from center x, center y, width, height to x1, y1, x2, y2 format."""
+    x1 = xc - w / 2
+    y1 = yc - h / 2
+    x2 = xc + w / 2
+    y2 = yc + h / 2
+    return x1, y1, x2, y2
+
+
 def bbox_union(boxes: np.ndarray) -> np.ndarray:
     """Returns a bounding box that covers all given boxes.
 

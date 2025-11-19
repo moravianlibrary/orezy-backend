@@ -1,5 +1,8 @@
+from io import BytesIO
 from fastapi.encoders import jsonable_encoder
-from app.db.schemas import Scan
+from app.core.utils import cxywh_norm_to_xyxy
+from app.db.schemas import Page, Scan
+from PIL import Image
 
 
 def format_page_data_flat(scans: list[Scan]) -> list[dict]:
@@ -35,13 +38,14 @@ def format_page_data_list(scans: list[Scan]) -> list[dict]:
             edited = False
             pages = scan.predicted_pages
 
+        # Collect all flags from pages, store on scan level
         flags = set([flag for page in scan.predicted_pages for flag in page.flags])
 
         formatted_scans.append(
             {
                 "_id": str(scan.id),
                 "flags": flags,
-                "pages": jsonable_encoder(pages, exclude={"confidence"}),
+                "pages": _page_object_to_dict(pages),
                 "edited": edited,
             }
         )
@@ -57,7 +61,41 @@ def format_predicted(scans: list[Scan]) -> list[dict]:
             {
                 "_id": str(scan.id),
                 "flags": flags,
-                "pages": jsonable_encoder(scan.predicted_pages, exclude={"confidence"}),
+                "pages": _page_object_to_dict(scan.predicted_pages),
             }
         )
     return formatted_scans
+
+
+def _page_object_to_dict(pages: list[Page]) -> list[dict]:
+    """Formats page data from obj to dict, adding xyxy coordinates."""
+    pages = jsonable_encoder(pages, exclude={"confidence"})
+    for page in pages:
+        left, top, right, bottom = cxywh_norm_to_xyxy(
+            page["xc"], page["yc"], page["width"], page["height"]
+        )
+        page["left"], page["top"], page["right"], page["bottom"] = (
+            left,
+            top,
+            right,
+            bottom,
+        )
+
+    return pages
+
+
+def resize_image(file_name, max_size: tuple = (160, 160)):
+    """Resizes image bytes to fit within max_size while maintaining aspect ratio.
+
+    Args:
+        file (bytes): Original image bytes.
+        max_size (tuple): Maximum width and height.
+
+    Returns:
+        bytes: Resized image bytes.
+    """
+    image = Image.open(file_name)
+    image.thumbnail(max_size)
+    output = BytesIO()
+    image.save(output, format="JPEG")
+    return output.getvalue()
