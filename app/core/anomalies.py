@@ -13,6 +13,8 @@ def flag_missing_pages(scans: list[Scan]) -> list[Scan]:
         list[Scan]: List of detected pages with flags.
     """
     page_counts = {scan.filename: len(scan.predicted_pages) for scan in scans}
+    if len(page_counts) == 0:
+        return scans
 
     # if less than 30% of pages are single
     single_pages = sum(1 for count in page_counts.values() if count == 1)

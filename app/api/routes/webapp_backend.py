@@ -19,6 +19,10 @@ from app.tasks.workflows.workflow_mongo import autocrop_workflow
 VOLUME_PATH = os.getenv("SCANS_VOLUME_PATH")
 router = APIRouter(prefix="", tags=["webapp"], dependencies=[Depends(require_token)])
 
+class ImagesResponse(BaseModel):
+    images: List[str]
+    media_type: str
+
 
 @router.post("/create")
 async def create_title(title_data: TitleCreate, db=Depends(get_db)):
@@ -123,7 +127,7 @@ async def get_title_state(id: str, db=Depends(get_db)):
     return title.get("state")
 
 
-@router.get("/{id}/all-scans")
+@router.get("/{id}/scans")
 async def get_scans(id: str, db=Depends(get_db)):
     """Gets crop instructions for all pages.
 
@@ -144,7 +148,7 @@ async def get_scans(id: str, db=Depends(get_db)):
     return pages
 
 
-@router.get("/{id}/all-scans/{scan_id}")
+@router.get("/{id}/scans/{scan_id}")
 async def get_pages_for_scan(id: str, scan_id: str, db=Depends(get_db)):
     """Gets crop instructions for a specific file (scan).
 
@@ -215,7 +219,7 @@ async def get_predicted_pages(id: str, db=Depends(get_db)):
     return scans
 
 
-@router.get("/{id}/file/{scan_id}", response_class=Response)
+@router.get("/{id}/files/{scan_id}", response_class=Response)
 async def get_scanfile(id: str, scan_id: str, db=Depends(get_db)):
     """Gets image of a specific scan.
 
@@ -240,13 +244,30 @@ async def get_scanfile(id: str, scan_id: str, db=Depends(get_db)):
     return Response(content=file, media_type="image/jpeg")
 
 
-class ImagesResponse(BaseModel):
-    images: List[str]
+@router.get("/{id}/thumbnails/{scan_id}", response_class=Response)
+async def get_thumbnail(id: str, scan_id: str, db=Depends(get_db)):
+    """Gets a thumbnail for a specific scan of a title.
+
+    Returns:
+        list: List of thumbnail image responses.
+    """
+    if not ObjectId.is_valid(id):
+        raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
+
+    scan = await db.titles.find_one(
+        {"scans._id": ObjectId(scan_id), "_id": ObjectId(id)},
+        {"scans": {"$elemMatch": {"_id": ObjectId(scan_id)}}},
+    )["scans"][0]
+    if not scan:
+        raise HTTPException(404, "Scan not found")
+
+    thumbnail = resize_image(scan["filename"])
+    return Response(content=thumbnail, media_type="image/jpeg")
 
 
 @router.get("/{id}/thumbnails", response_model=ImagesResponse)
 async def get_thumbnails(id: str, db=Depends(get_db)):
-    """Gets thumbnails for all scans of a title.
+    """Gets list of thumbnails as B64 for all title scans.
 
     Returns:
         list: List of thumbnail image responses.
@@ -268,29 +289,7 @@ async def get_thumbnails(id: str, db=Depends(get_db)):
         except Exception as e:
             raise HTTPException(500, f"Failed to read thumbnail file: {e}")
 
-    return ImagesResponse(images=thumbnails)
-
-
-@router.get("/{id}/thumbnails/{scan_id}", response_model=ImagesResponse)
-async def get_thumbnail(id: str, scan_id: str, db=Depends(get_db)):
-    """Gets a thumbnail for a specific scan of a title.
-
-    Returns:
-        list: List of thumbnail image responses.
-    """
-    if not ObjectId.is_valid(id):
-        raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
-
-    scan = await db.titles.find_one(
-        {"scans._id": ObjectId(scan_id), "_id": ObjectId(id)},
-        {"scans": {"$elemMatch": {"_id": ObjectId(scan_id)}}},
-    )
-    scan = scan["scans"][0]
-    if not scan:
-        raise HTTPException(404, "Scan not found")
-
-    thumbnail = resize_image(scan["filename"])
-    return Response(content=thumbnail, media_type="image/jpeg")
+    return ImagesResponse(images=thumbnails, media_type="image/jpeg")
 
 
 @router.patch("/{id}/update-pages")

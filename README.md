@@ -43,8 +43,6 @@ Then, run the application in following steps:
 - `uv run --env-file .env fastapi dev`  Start API locally, Swagger UI will be available at http://127.0.0.1:8000/docs
 - `uv run --env-file .env -m app.tasks.worker`  Start worker locally. The UI is available at http://127.0.0.1:8888/
 
-- `uvx ruff format . && uvx ruff check --fix .`  Format the project and fix linter errors
-
 ## Production
 
 The production version is stored in docker-compose.yml. There are 2 prerequisites before running the application. First, go over the environment variables in the docker compose, generate and set secrets (DB passwords, tokens) accordingly. Then, create .hatchet-user-env file which creates login parameters for the Hatchet UI. Use strong passwords, as the access to this UI allows spawning custom tasks. The env file has a following structure: 
@@ -60,3 +58,11 @@ Then, run the application in following steps:
 
 - `bash generate-worker-env.sh` Generates a Hatchet API token required for communication between the worker and the server. Saves the token into .worker-env, which will be reused in the docker compose.
 - `docker-compose up -d` Start all services (Hatchet server, PostgreSQL and RabbitMQ as Hatchet backend, MongoDB, API, and worker). API endpoints will be available at http://127.0.0.1:8000/docs , Hatchet UI at http://127.0.0.1:8888/ .
+
+
+# Development
+
+Development cheat sheet:
+
+- `uvx ruff format . && uvx ruff check --fix .`  Format the project and fix linter errors
+- `uv run pytest -v` Run tests

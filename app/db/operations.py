@@ -50,5 +50,5 @@ def db_add_scans_bulk(title_id: ObjectId, pages_data: list[Scan], db):
         {"$push": {"scans": {"$each": docs}}},
     )
 
-    logger.debug(f"Added {len(docs)} pages to title {title_id}")
+    logger.debug(f"Added {len(docs)} scans to title {title_id}")
     return {"title_id": title_id, "added_count": len(docs)}
