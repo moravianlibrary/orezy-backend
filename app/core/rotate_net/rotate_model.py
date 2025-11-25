@@ -52,7 +52,7 @@ def rotate_pages(
     idx = 0
     for res in scan_results:
         for bbox in res.predicted_pages:
-            bbox.angle = preds[idx]
+            bbox.angle = -preds[idx]
             bbox.width, bbox.height = resize_bbox_ratio_by_angle(
                 bbox.width, bbox.height, bbox.angle
             )

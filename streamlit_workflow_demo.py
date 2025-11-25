@@ -21,7 +21,7 @@ def show_results(results):
                 w,
                 h,
             )
-            rrect = ((xc, yc), (ww, hh), -page["angle"])
+            rrect = ((xc, yc), (ww, hh), page["angle"])
             pts = cv2.boxPoints(rrect)  # float32, order is consistent (clockwise)
             pts = np.intp(np.round(pts))  # convert to int for drawing
             cv2.polylines(im, [pts], isClosed=True, color=(0, 255, 0), thickness=4)
@@ -31,6 +31,30 @@ def show_results(results):
             )
 
         st.image(im, width=600)
+        st.write("Page flags:", [page["flags"] for page in scan_data["pages"]])
+
+def show_results_cropped(results):
+    for filepath, scan_data in results:
+        im = cv2.imread(filepath)
+        im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+        h, w = im.shape[0], im.shape[1]
+
+        for page in scan_data["pages"]:
+            (xc, yc, ww, hh) = denormalize_bbox(
+                (page["xc"], page["yc"], page["width"], page["height"]),
+                w,
+                h,
+            )
+            # rotate image around center
+            M = cv2.getRotationMatrix2D((xc, yc), page["angle"], 1.0)
+            current_img = cv2.warpAffine(im, M, (w, h), flags=cv2.INTER_CUBIC)
+            current_im = current_img[
+                int(yc - hh / 2) : int(yc + hh / 2), int(xc - ww / 2) : int(xc + ww / 2)
+            ]
+            current_im = cv2.copyMakeBorder(
+                current_im, 5, 5, 5, 5, cv2.BORDER_CONSTANT, value=[200, 200, 200]
+            )
+            st.image(current_im, width=400)
         st.write("Page flags:", [page["flags"] for page in scan_data["pages"]])
 
 
@@ -43,6 +67,7 @@ def main():
         "",
     )
     use_inner = st.checkbox("Use outer crop method", value=False, help="When checked, crop_method will be set to 'outer'")
+    show_cropped = st.checkbox("Show cropped results", value=False, help="When checked, shows cropped images instead of full images with boxes")
     crop_method = "outer" if use_inner else "inner"
 
     if st.button("Generate crop boxes"):
@@ -63,6 +88,7 @@ def main():
                 },
                 headers=headers,
             )
+            st.write(response)
             result = response.json()
             st.write(result)
             st.success(f"Queued {len(files)} images.")
@@ -89,7 +115,10 @@ def main():
             )
             results = response.json()
 
-            show_results(zip(filepaths, results))
+            if show_cropped:
+                show_results_cropped(zip(filepaths, results))
+            else:
+                show_results(zip(filepaths, results))
 
 
 main()
