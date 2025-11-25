@@ -1,6 +1,7 @@
 import os
 from urllib.parse import urljoin
 from fastapi import APIRouter, Depends, HTTPException
+import grpc
 from app.api.deps import get_db, require_token
 from app.api.utils import format_page_data_flat
 from app.db.schemas import Scan, TaskState, Title, TitleCreate
@@ -32,13 +33,13 @@ async def create_title(title_data: TitleCreate, db=Depends(get_db)):
     # Schedule task and update state
     try:
         await autocrop_workflow.aio_run_no_wait(input=Title(**doc))
-        await db.titles.update_one(
+    except grpc.RpcError:
+        pass  # ignore gRPC timeout, the task will be created anyway
+
+    await db.titles.update_one(
             {"external_id": doc["external_id"]},
             {"$set": {"state": TaskState.scheduled}},
         )
-    except Exception as e:
-        await db.titles.delete_one({"external_id": doc["external_id"]})
-        raise HTTPException(500, f"Failed to schedule workflow: {e}")
 
     return {"state": TaskState.scheduled, "id": doc["external_id"]}
 
