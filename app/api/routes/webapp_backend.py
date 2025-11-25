@@ -169,36 +169,6 @@ async def get_pages_for_scan(id: str, scan_id: str, db=Depends(get_db)):
     return pages
 
 
-@router.get("/{id}/ok-scans")
-async def get_ok_scans(id: str, db=Depends(get_db)):
-    """Gets all OK (without flags) scans for a title.
-
-    Returns:
-        list: List of scans with page crop instructions.
-    """
-    if not ObjectId.is_valid(id):
-        raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
-
-    all_scans = await get_scans(id, db)
-    ok_scans = [scan for scan in all_scans if not scan["flags"]]
-    return ok_scans
-
-
-@router.get("/{id}/nok-scans")
-async def get_flagged_scans(id: str, db=Depends(get_db)):
-    """Gets all scans with flags for a title.
-
-    Returns:
-        list: List of scans with page crop instructions.
-    """
-    if not ObjectId.is_valid(id):
-        raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
-
-    all_scans = await get_scans(id, db)
-    flagged_scans = [scan for scan in all_scans if scan["flags"]]
-    return flagged_scans
-
-
 @router.get("/{id}/predicted-scans")
 async def get_predicted_pages(id: str, db=Depends(get_db)):
     """Gets predictions for all scans (without user edits).
@@ -266,33 +236,6 @@ async def get_thumbnail(id: str, scan_id: str, db=Depends(get_db)):
     return Response(content=thumbnail, media_type="image/jpeg")
 
 
-@router.get("/{id}/thumbnails", response_model=ImagesResponse)
-async def get_thumbnails(id: str, db=Depends(get_db)):
-    """Gets list of thumbnails as B64 for all title scans.
-
-    Returns:
-        list: List of thumbnail image responses.
-    """
-    if not ObjectId.is_valid(id):
-        raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
-
-    title = await db.titles.find_one({"_id": ObjectId(id)})
-    if not title:
-        raise HTTPException(404, "Title not found")
-
-    thumbnails = []
-    for file_name in title["filelist"]:
-        try:
-            file = resize_image(file_name)
-            # convert to b64
-            file_b64 = base64.b64encode(file).decode("utf-8")
-            thumbnails.append(file_b64)
-        except Exception as e:
-            raise HTTPException(500, f"Failed to read thumbnail file: {e}")
-
-    return ImagesResponse(images=thumbnails, media_type="image/jpeg")
-
-
 @router.patch("/{id}/update-pages")
 async def update_pages(id: str, scans: list[ScanUpdate], db=Depends(get_db)):
     """Updates predicted coordinates with user input for a given title ID.
@@ -353,6 +296,23 @@ async def delete_title(id: str, db=Depends(get_db)):
             raise HTTPException(500, f"Failed to delete volume for title {id}: {e}")
     return {"detail": "Title and associated scans deleted"}
 
+@router.patch("/{id}/reset")
+async def reset_predictions(id: str, db=Depends(get_db)):
+    """Resets all predictions for a given title ID. User edits are permanently removed from database.
+    
+    Returns:
+        list: List of scans with predicted page crop instructions."""
+    if not ObjectId.is_valid(id):
+        raise HTTPException(400, f"ID '{id}' is not a valid ObjectId")
+
+    result = await db.titles.update_one(
+        {"_id": ObjectId(id)},
+        {"$set": {"scans.$[].user_edited_pages": None}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(404, f"Title with id {id} not found")
+
+    return await get_scans(id, db)
 
 @router.get("/title-ids")
 async def get_title_ids(db=Depends(get_db)):

@@ -26,7 +26,7 @@ def flag_missing_pages(scans: list[Scan]) -> list[Scan]:
     return scans
 
 
-def flag_low_confidence(scans: list[Scan], threshold: float = 0.7) -> list[Scan]:
+def flag_low_confidence(scans: list[Scan], threshold: float = 0.5) -> list[Scan]:
     """Adds a flag when the model confidence is below a threshold.
 
     Args:
