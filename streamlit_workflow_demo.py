@@ -33,6 +33,7 @@ def show_results(results):
         st.image(im, width=600)
         st.write("Page flags:", [page["flags"] for page in scan_data["pages"]])
 
+
 def show_results_cropped(results):
     for filepath, scan_data in results:
         im = cv2.imread(filepath)
@@ -66,8 +67,16 @@ def main():
         "Scan filepath",
         "",
     )
-    use_inner = st.checkbox("Use outer crop method", value=False, help="When checked, crop_method will be set to 'outer'")
-    show_cropped = st.checkbox("Show cropped results", value=False, help="When checked, shows cropped images instead of full images with boxes")
+    use_inner = st.checkbox(
+        "Use outer crop method",
+        value=False,
+        help="When checked, crop_method will be set to 'outer'",
+    )
+    show_cropped = st.checkbox(
+        "Show cropped results",
+        value=False,
+        help="When checked, shows cropped images instead of full images with boxes",
+    )
     crop_method = "outer" if use_inner else "inner"
 
     if st.button("Generate crop boxes"):
