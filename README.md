@@ -26,7 +26,7 @@ To run your application locally, use docker-compose.hatchet-local.yml. Prerequis
 ```
 MONGODB_URI = Url to your MongoDB instance
 MONGODB_DB = DB name
-MONGODB_PW = Create your DB password
+MONGODB_PASS = Create your DB password
 
 ENABLE_TLS = true
 
