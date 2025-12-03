@@ -1,4 +1,4 @@
-import base64
+from datetime import datetime
 import os
 from typing import List
 from bson import ObjectId
@@ -18,6 +18,7 @@ from app.tasks.workflows.workflow_mongo import autocrop_workflow
 
 VOLUME_PATH = os.getenv("SCANS_VOLUME_PATH")
 router = APIRouter(prefix="", tags=["webapp"], dependencies=[Depends(require_token)])
+
 
 class ImagesResponse(BaseModel):
     images: List[str]
@@ -73,7 +74,8 @@ async def upload_scan(id: str, scan_data: UploadFile, db=Depends(get_db)):
 
     # Update title entry in DB
     await db.titles.update_one(
-        {"_id": ObjectId(id)}, {"$push": {"filelist": scan_path}}
+        {"_id": ObjectId(id)},
+        {"$push": {"filelist": scan_path}, "$set": {"modified_at": datetime.now()}},
     )
     return {"id": id, "filename": scan_data.filename}
 
@@ -102,7 +104,7 @@ async def process_title(id: str, db=Depends(get_db)):
         await autocrop_workflow.aio_run_no_wait(input=Title(**title))
         await db.titles.update_one(
             {"_id": ObjectId(id)},
-            {"$set": {"state": TaskState.scheduled}},
+            {"$set": {"state": TaskState.scheduled, "modified_at": datetime.now()}},
         )
     except Exception as e:
         raise HTTPException(500, f"Failed to schedule workflow: {e}")
@@ -271,6 +273,12 @@ async def update_pages(id: str, scans: list[ScanUpdate], db=Depends(get_db)):
         )
         if result.matched_count == 0:
             raise HTTPException(404, f"Scan with id {scan.id} not found")
+
+    # Update title state to user_approved
+    await db.titles.update_one(
+        {"_id": ObjectId(id)},
+        {"$set": {"state": TaskState.user_approved, "modified_at": datetime.now()}},
+    )
     return {"id": id}
 
 
@@ -296,10 +304,11 @@ async def delete_title(id: str, db=Depends(get_db)):
             raise HTTPException(500, f"Failed to delete volume for title {id}: {e}")
     return {"detail": "Title and associated scans deleted"}
 
+
 @router.patch("/{id}/reset")
 async def reset_predictions(id: str, db=Depends(get_db)):
     """Resets all predictions for a given title ID. User edits are permanently removed from database.
-    
+
     Returns:
         list: List of scans with predicted page crop instructions."""
     if not ObjectId.is_valid(id):
@@ -307,12 +316,13 @@ async def reset_predictions(id: str, db=Depends(get_db)):
 
     result = await db.titles.update_one(
         {"_id": ObjectId(id)},
-        {"$set": {"scans.$[].user_edited_pages": None}}
+        {"$set": {"scans.$[].user_edited_pages": None, "modified_at": datetime.now()}},
     )
     if result.matched_count == 0:
         raise HTTPException(404, f"Title with id {id} not found")
 
     return await get_scans(id, db)
+
 
 @router.get("/title-ids")
 async def get_title_ids(db=Depends(get_db)):

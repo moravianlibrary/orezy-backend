@@ -1,8 +1,12 @@
 from io import BytesIO
+import os
 from fastapi.encoders import jsonable_encoder
 from app.core.utils import cxywh_norm_to_xyxy
 from app.db.schemas import Page, Scan
 from PIL import Image
+
+
+RETRAIN_VOLUME_PATH = os.getenv("RETRAIN_VOLUME_PATH")
 
 
 def format_page_data_flat(scans: list[Scan]) -> list[dict]:
@@ -52,6 +56,11 @@ def format_page_data_list(scans: list[Scan]) -> list[dict]:
     return formatted_scans
 
 
+def get_wrong_predictions(scans: list[Scan]) -> int:
+    """Returns scans where user edited pages are present."""
+    return [scan for scan in scans if scan.user_edited_pages]
+
+
 def format_predicted(scans: list[Scan]) -> list[dict]:
     """Formats scans with ML generated pages only."""
     formatted_scans = []
@@ -99,3 +108,32 @@ def resize_image(file_name, max_size: tuple = (160, 160)):
     output = BytesIO()
     image.save(output, format="JPEG")
     return output.getvalue()
+
+
+def copy_images_for_retraining(id, filelist: list[str]) -> list[str]:
+    """Copies images to retraining folder, returns new filelist.
+
+    Args:
+        id (str): Title ID to create a subfolder.
+        filelist (list[str]): List of original file paths.
+    Returns:
+        list[str]: List of new file paths in retraining folder.
+    """
+    path = os.path.join(RETRAIN_VOLUME_PATH, str(id))
+    os.makedirs(path, exist_ok=True)
+
+    retrain_filelist = []
+    for file_path in filelist:
+        image = Image.open(file_path)
+        # Resize to 960 px
+        h, w = image.size
+        scale = 960 / max(h, w)
+        nh, nw = int(h * scale), int(w * scale)
+        image = image.resize((nh, nw))
+
+        # Save as JPEG
+        basename = os.path.basename(file_path).split(".")[0] + ".jpg"
+        image.save(os.path.join(path, basename), format="JPEG")
+        retrain_filelist.append(os.path.join(path, basename))
+
+    return retrain_filelist
