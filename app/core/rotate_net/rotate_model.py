@@ -12,7 +12,9 @@ rotation_model = None
 def _ensure_rotation_model():
     global rotation_model
     if rotation_model is None:
-        rotation_model = AngleDegModel(model="models/rotate-net-finetune.pth")
+        rotation_model = AngleDegModel(
+            model="/Users/lucienovotna/Documents/rotate_finetune_model_test/finetune150e/best_model.pth"
+        )
     return rotation_model
 
 

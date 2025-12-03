@@ -1,7 +1,11 @@
+import logging
 import numpy as np
 import cv2
 
 from app.db.schemas import Scan
+
+
+logger = logging.getLogger("auto-crop-ml")
 
 
 def denormalize_bbox(
@@ -51,32 +55,35 @@ def bbox_union(boxes: np.ndarray) -> np.ndarray:
     return np.array([min_x, min_y, max_x, max_y], np.int32)
 
 
-def bbox_intersection(box: np.ndarray, intersect_with_box: np.ndarray) -> np.ndarray:
-    """Returns boxes that intersect with a given bounding box.
+def bbox_intersection(
+    box: np.ndarray, intersect_with_box: np.ndarray
+) -> np.ndarray | None:
+    """Creates an intersection box between two bounding boxes.
 
     Args:
-        box (numpy.ndarray): Bounding box to check intersection with [x1, y1, x2, y2].
-        intersect_with_box (numpy.ndarray): Bounding box to check intersection with [x1, y1, x2, y2].
+        box (numpy.ndarray): Bounding box coordinates [x1, y1, x2, y2].
+        intersect_with_box (numpy.ndarray): Bounding box to intersect with [x1, y1, x2, y2].
     Returns:
-        numpy.ndarray: Boxes that intersect with the given box.
+        numpy.ndarray | None: Intersection bounding box or None if no intersection.
     """
-    box_x1 = np.maximum(box[0], intersect_with_box[0])
-    box_y1 = np.maximum(box[1], intersect_with_box[1])
-    box_x2 = np.minimum(box[2], intersect_with_box[2])
-    box_y2 = np.minimum(box[3], intersect_with_box[3])
-    intersecting_boxes = box[(box_x1 < box_x2) & (box_y1 < box_y2)]
-    return intersecting_boxes
+    x1 = max(box[0], intersect_with_box[0])
+    y1 = max(box[1], intersect_with_box[1])
+    x2 = min(box[2], intersect_with_box[2])
+    y2 = min(box[3], intersect_with_box[3])
+    if x1 >= x2 or y1 >= y2:
+        return None  # No intersection
+    return np.array([x1, y1, x2, y2], np.int32)
 
 
-def bbox_size(box: np.ndarray) -> np.ndarray:
+def bbox_size(box: np.ndarray) -> float:
     """Calculates the size of a bounding box.
 
     Args:
         box (numpy.ndarray): Bounding box coordinates [x1, y1, x2, y2].
     Returns:
-        numpy.ndarray: Size of the bounding box [width, height].
+        float: area of the bounding box.
     """
-    return box[2:] - box[:2] if box is not None else 0
+    return (box[2] - box[0]) * (box[3] - box[1]) if box is not None else 0
 
 
 def add_margin(box: np.ndarray, margin: tuple = (10, 10)) -> np.ndarray:
@@ -143,4 +150,39 @@ def assign_page_type(scan: Scan) -> Scan:
         scan.predicted_pages[1].type = "right"
     elif len(scan.predicted_pages) == 1:
         scan.predicted_pages[0].type = "single"
+    return scan
+
+
+def merge_overlaps(scan: Scan) -> Scan:
+    """Removes overlapping pages in a Scan object.
+
+    Args:
+        scan (Scan): Scan object with predicted pages.
+    Returns:
+        Scan: Updated Scan object with merged pages.
+    """
+    if not len(scan.predicted_pages) == 2:
+        return scan  # Only merge if there are exactly two pages
+
+    box1 = scan.predicted_pages[0]
+    box2 = scan.predicted_pages[1]
+    x1_1, y1_1, x2_1, y2_1 = cxywh_to_xyxy(
+        box1.xc * 1000, box1.yc * 1000, box1.width * 1000, box1.height * 1000
+    )
+    box1 = np.array([x1_1, y1_1, x2_1, y2_1])
+
+    x1_2, y1_2, x2_2, y2_2 = cxywh_to_xyxy(
+        box2.xc * 1000, box2.yc * 1000, box2.width * 1000, box2.height * 1000
+    )
+    box2 = np.array([x1_2, y1_2, x2_2, y2_2])
+
+    intersection = bbox_intersection(box1, box2)
+
+    # if intersection is larger than 80% of the smaller box, drop
+    if intersection is not None:
+        if bbox_size(intersection) / min(bbox_size(box1), bbox_size(box2)) > 0.8:
+            if bbox_size(box1) >= bbox_size(box2):
+                scan.predicted_pages = [scan.predicted_pages[0]]
+            else:
+                scan.predicted_pages = [scan.predicted_pages[1]]
     return scan

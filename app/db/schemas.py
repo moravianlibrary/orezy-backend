@@ -52,6 +52,7 @@ class TaskState(str, Enum):
     ready = "ready"
     failed = "failed"
     user_approved = "user_approved"
+    retrain = "retrain"
     completed = "completed"
 
 

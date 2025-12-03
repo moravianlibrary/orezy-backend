@@ -44,8 +44,8 @@ def flag_low_confidence(scans: list[Scan], threshold: float = 0.5) -> list[Scan]
 
 def flag_dimensions_anomalies(scans: list[Scan]) -> list[Scan]:
     """Adds a flag when:
-    - the width/height ratio is outside standard deviation.
-    - the bbox square sum is outside standard deviation.
+    - the width/height ratio is different from average.
+    - the bbox square sum is different from average.
 
     Args:
         scans (list[Scan]): List of detected scans.
@@ -59,22 +59,18 @@ def flag_dimensions_anomalies(scans: list[Scan]) -> list[Scan]:
         area = sum(page.width * page.height for page in scan.predicted_pages)
         areas.append(area)
 
-    # Calculate average and stddev of bbox areas
+    # Calculate average
     area_avg = sum(areas) / len(areas)
-    area_stddev = (sum((x - area_avg) ** 2 for x in areas) / len(areas)) ** 0.5
-
-    # Calculate average and stddev of width/height ratios
     ratio_average = sum(ratios) / len(ratios)
-    ratio_stddev = (sum((x - ratio_average) ** 2 for x in ratios) / len(ratios)) ** 0.5
 
     for scan in scans:
         for page in scan.predicted_pages:
             local_ratio = page.width / page.height
             local_area = sum(page.width * page.height for page in scan.predicted_pages)
-            # Flag if outside stddev
+            # Flag if difference is more than 5%
             if (
-                abs(local_ratio - ratio_average) > ratio_stddev
-                or abs(local_area - area_avg) > 2 * area_stddev
+                abs(local_ratio - ratio_average) / ratio_average > 0.05
+                or abs(local_area - area_avg) / area_avg > 0.05
             ):
                 page.flags += [Anomaly.dimensions]
     return scans
@@ -129,7 +125,7 @@ def flag_prediction_overlaps(scans: list[Scan]) -> list[Scan]:
                 for page in scan.predicted_pages
             ]
         )
-        if bbox_intersection(boxes[0], boxes[1]).size > 0:
+        if bbox_intersection(boxes[0], boxes[1]) is not None:
             for page in scan.predicted_pages:
                 page.flags += [Anomaly.prediction_overlap]
     return scans

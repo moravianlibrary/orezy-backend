@@ -3,7 +3,12 @@ import cv2
 from ultralytics import YOLO
 
 from app.db.schemas import Page, Scan
-from app.core.utils import add_margin, assign_page_type, bbox_from_image_contours
+from app.core.utils import (
+    add_margin,
+    assign_page_type,
+    bbox_from_image_contours,
+    merge_overlaps,
+)
 import numpy as np
 
 logger = logging.getLogger("auto-crop-ml")
@@ -16,7 +21,7 @@ def _ensure_crop_model():
     global crop_model
     if crop_model is None:
         crop_model = YOLO(
-            "models/crop-yolov10n-finetune.pt",
+            "/Users/lucienovotna/Documents/100e-32b-mosaic-no-pad/weights/best.pt",  # "/Users/lucienovotna/Documents/70e-32b-no-pad/weights/best.pt",
             task="detect",
         )
     return crop_model
@@ -117,6 +122,8 @@ def crop_images_inner(
                 )
             # Divide pages into left - right based on xc
             scan = assign_page_type(scan)
+            # Merge overlapping pages
+            scan = merge_overlaps(scan)
             results.append(scan)
 
     return results
