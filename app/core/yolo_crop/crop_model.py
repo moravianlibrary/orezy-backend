@@ -21,7 +21,7 @@ def _ensure_crop_model():
     global crop_model
     if crop_model is None:
         crop_model = YOLO(
-            "/Users/lucienovotna/Documents/100e-32b-mosaic-no-pad/weights/best.pt",  # "/Users/lucienovotna/Documents/70e-32b-no-pad/weights/best.pt",
+            "models/crop-yolov10s-100e-mosaic-best.pt",
             task="detect",
         )
     return crop_model

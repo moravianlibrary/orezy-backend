@@ -3,7 +3,7 @@ import logging
 from app.core.rotate_net.dataset import PageAngleDataset
 from app.core.rotate_net.network import AngleDegModel, predict_angles
 from torch.utils.data import DataLoader
-from app.db.schemas import Scan
+from app.db.schemas import Anomaly, Page, Scan
 
 logger = logging.getLogger("auto-crop-ml")
 rotation_model = None
@@ -13,7 +13,7 @@ def _ensure_rotation_model():
     global rotation_model
     if rotation_model is None:
         rotation_model = AngleDegModel(
-            model="/Users/lucienovotna/Documents/rotate_finetune_model_test/finetune150e/best_model.pth"
+            model="models/rotate-resnet-200e-best.pth"
         )
     return rotation_model
 
@@ -50,15 +50,19 @@ def rotate_pages(
     )
     preds = predict_angles(model, loader)
 
-    # Update Scan results with predicted angles, rescale box ratio
+    # Save predicted angles back to scan results
     idx = 0
     for res in scan_results:
         for bbox in res.predicted_pages:
             bbox.angle = -preds[idx]
+            idx += 1
+
+        # Post-process: fix rotation errors and resize bboxes
+        res.predicted_pages = autofix_rotation_errors(res.predicted_pages, res.filename)
+        for bbox in res.predicted_pages:
             bbox.width, bbox.height = resize_bbox_ratio_by_angle(
                 bbox.width, bbox.height, bbox.angle
             )
-            idx += 1
 
     return scan_results
 
@@ -83,3 +87,42 @@ def resize_bbox_ratio_by_angle(w_a, h_a, angle_deg):
         f"Rescaled dimensions for angle {angle_deg:.2f}°: ({w_a:.2f}, {h_a:.2f}) => ({w:.2f}, {h:.2f})"
     )
     return w, h
+
+
+def autofix_rotation_errors(pages: list["Page"], filename: str, model=_ensure_rotation_model()) -> list["Page"]:
+    """Autofix angles for multi-page scans with conflicting angles.
+    Works by rerunning angle prediction with a larger bounding box (covering 50% of the image).
+
+    Args:
+        pages (list[Page]): List of detected pages.
+        filename (str): Image filename.
+        model (AngleDegModel): Preloaded rotation model.
+    Returns:
+        list[Page]: List of detected pages with potentially updated angles.
+    """
+    # Only fix two-page scans where angle difference is larger than 3°
+    if len(pages) != 2 or abs(pages[0].angle - pages[1].angle) < 3.0:
+        return pages
+    
+    rerun_idx = 0 if abs(pages[0].angle) > abs(pages[1].angle) else 1
+    dataloader = DataLoader(
+        PageAngleDataset(
+            image_paths=[filename],
+            image_bboxes=[(0.25, 0.5, 0.5, 1) if rerun_idx == 0 else (0.75, 0.5, 0.5, 1)],
+            is_train=False,
+            image_size=640,
+            angle_max=10.0,
+        ),
+        batch_size=1,
+        shuffle=False,
+        num_workers=0,
+        pin_memory=True
+    )
+
+    preds = predict_angles(model, dataloader)
+
+    pages[rerun_idx].angle = -preds[0]
+    pages[rerun_idx].flags.append(Anomaly.rotation_confidence)
+    
+    logger.info(f"Autofixed rotation angle for page {rerun_idx} to {pages[rerun_idx].angle:.2f}°")
+    return pages
