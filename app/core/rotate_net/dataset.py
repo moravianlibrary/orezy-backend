@@ -7,11 +7,9 @@ from torch.utils.data import Dataset
 import cv2
 import torch
 
-from app.core.utils import cxywh_to_xyxy, denormalize_bbox
-
 
 class PageAngleDataset(Dataset):
-    """Dataset for page images and their bounding boxes to predict rotation angles."""
+    """Dataset for page image rotation angle prediction."""
 
     def __init__(
         self,
@@ -21,6 +19,7 @@ class PageAngleDataset(Dataset):
         is_train: bool = True,
         angle_max: float = 10.0,
         aug_rotate_prob: float = 0.9,
+        use_canny: bool = False,
     ):
         self.image_paths = image_paths
         self.image_bboxes = image_bboxes
@@ -28,6 +27,7 @@ class PageAngleDataset(Dataset):
         self.is_train = is_train
         self.angle_max = angle_max
         self.aug_rotate_prob = aug_rotate_prob
+        self.use_canny = use_canny
 
         self.normalize_tf = transforms.Compose(
             [
@@ -43,75 +43,103 @@ class PageAngleDataset(Dataset):
         # Load image
         img_path = self.image_paths[idx]
         img = cv2.imread(img_path)
-        # Binarize images
-        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-        _, bw = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        # small opening to remove isolated noise
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-        bw = cv2.morphologyEx(bw, cv2.MORPH_OPEN, kernel)
-        img = cv2.cvtColor(bw, cv2.COLOR_GRAY2RGB)
 
         angle = 0.0
         # Load crop coordinates
         img_h, img_w, _ = img.shape
-        xc, yc, w, h = denormalize_bbox(self.image_bboxes[idx], img_w, img_h)
+        xc, yc, w, h = self._denormalize_bbox(self.image_bboxes[idx], img_w, img_h)
 
-        # Rotate image
-        if self.is_train and random.random() < self.aug_rotate_prob:
-            angle = random.uniform(-self.angle_max, self.angle_max)
-            img = self._rotate_around_center(img, angle, xc, yc)
+        try:
+            # Augment images: rotation, translation jitter
+            if self.is_train and random.random() < self.aug_rotate_prob:
+                xc, yc, w, h = self._add_jitter(xc, yc, w, h, img_w, img_h, jitter_percent=0.05)
+                angle = random.uniform(-self.angle_max, self.angle_max)
+                img = self._rotate_around_center(img, angle, xc, yc)
 
-        # Crop
-        x1, y1, x2, y2 = cxywh_to_xyxy(xc, yc, w, h)
-        if self.is_train:
-            x1, y1, x2, y2 = self._add_jitter(
-                x1, y1, x2, y2, jitter_scale=int(0.025 * img_w)
-            )
+            # Convert to bounding box and clamp
+            x1, y1, x2, y2 = self._cxywh_to_xyxy(xc, yc, w, h)
+            x1 = max(0, x1)
+            y1 = max(0, y1)
+            x2 = min(img_w, x2)
+            y2 = min(img_h, y2)
 
-        # Clamp to image boundaries
-        x1 = max(0, x1)
-        y1 = max(0, y1)
-        x2 = min(img_w, x2)
-        y2 = min(img_h, y2)
-        if x1 != x2 and y1 != y2:
-            img = img[y1:y2, x1:x2]
+            # Crop
+            if x1 < x2 and y1 < y2:
+                img = img[y1:y2, x1:x2]
+            
+            # Binarize images
+            gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+            _, bw = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            # small opening to remove isolated noise
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+            bw = cv2.morphologyEx(bw, cv2.MORPH_OPEN, kernel)
+            img = cv2.cvtColor(bw, cv2.COLOR_GRAY2RGB)
 
-        # Resize with padding
-        img = self._resize_letterbox_pad(img, self.image_size)
+            if self.use_canny:
+                img = cv2.Canny(img, 100, 200)
+                img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
 
-        # Normalize and convert to tensor
-        img_pil = Image.fromarray(img)
-        img_t = self.normalize_tf(img_pil)
+            # Resize with padding
+            img = self._resize_letterbox_pad(img, self.image_size)
+
+            # Normalize and convert to tensor
+            img_pil = Image.fromarray(img)
+            img_t = self.normalize_tf(img_pil)
+        except Exception as e:
+            print(f"Error processing image {img_path}: {e}, {xc}, {yc}, {w}, {h}, {angle}")
+            raise e
         return img_t, torch.tensor([angle], dtype=torch.float32), angle
 
-    def _add_jitter(
-        self, x1: int, y1: int, x2: int, y2: int, jitter_scale: int = 20
+    def _denormalize_bbox(
+        self, bbox: tuple[float, float, float, float], img_w: int, img_h: int
     ) -> tuple[int, int, int, int]:
-        """Add random jitter to the bounding box coordinates."""
-        x1 += random.randint(-jitter_scale, jitter_scale)
-        y1 += random.randint(-jitter_scale, jitter_scale)
-        x2 += random.randint(-jitter_scale, jitter_scale)
-        y2 += random.randint(-jitter_scale, jitter_scale)
+        return (
+            int(bbox[0] * img_w),
+            int(bbox[1] * img_h),
+            int(bbox[2] * img_w),
+            int(bbox[3] * img_h),
+        )
+
+    def _cxywh_to_xyxy(
+        self, xc: int, yc: int, w: int, h: int
+    ) -> tuple[int, int, int, int]:
+        x1 = int(xc - w / 2)
+        y1 = int(yc - h / 2)
+        x2 = int(xc + w / 2)
+        y2 = int(yc + h / 2)
         return x1, y1, x2, y2
 
     def _rotate_around_center(
         self, img: np.ndarray, angle: float, xc: int, yc: int
     ) -> np.ndarray:
-        """Rotate image around center (xc, yc) by angle degrees.
-
-        Args:
-            img: input image as numpy array
-            angle: rotation angle in degrees (positive values mean counter-clockwise rotation)
-            xc: x-coordinate of the center point
-            yc: y-coordinate of the center point
-        Returns:
-            rotated image as numpy array
-        """
+        # Compute rotation matrix
         M = cv2.getRotationMatrix2D((xc, yc), angle, 1.0)
+        # Perform affine warp (rotation)
         rotated = cv2.warpAffine(
-            img, M, (img.shape[1], img.shape[0]), flags=cv2.INTER_LINEAR
+            img,
+            M,
+            (img.shape[1], img.shape[0]),
+            flags=cv2.INTER_LINEAR,
+            borderMode=cv2.BORDER_CONSTANT,
+            borderValue=(0, 0, 0),
         )
         return rotated
+
+    def _add_jitter(self, xc: int, yc: int, w: int, h: int, img_w: int, img_h: int, jitter_percent: float = 0.04) -> tuple[int, int, int, int]:
+        """Add random jitter to the bounding box coordinates."""
+        xc += random.normalvariate(0, jitter_percent * img_w)
+        yc += random.normalvariate(0, jitter_percent * img_h)
+
+        w += random.uniform(-2 * jitter_percent * img_w, 2 * jitter_percent * img_w)
+        h += random.uniform(-2 * jitter_percent * img_h, 2 * jitter_percent * img_h)
+
+        # Ensure bbox is within image boundaries
+        if xc + w / 2 > img_w or xc - w / 2 < 0:
+            w = min(w, 2 * min(xc, img_w - xc))
+        if yc + h / 2 > img_h or yc - h / 2 < 0:
+            h = min(h, 2 * min(yc, img_h - yc))
+
+        return xc, yc, w, h
 
     def _resize_letterbox_pad(self, img: np.ndarray, size: int) -> np.ndarray:
         # Resize image with letterbox padding to keep aspect ratio
@@ -125,15 +153,10 @@ class PageAngleDataset(Dataset):
         # +---------------------------+
         h, w = img.shape[:2]
         scale = size / max(h, w)
-        print("Resizing with scale:", scale, "for image size:", (h, w))
+
         nh, nw = int(h * scale), int(w * scale)
-        try:
-            img_resized = cv2.resize(img, (nw, nh))
-        except Exception as e:
-            print("Error resizing image:", nh, nw, "from original size:", (h, w), scale)
-            raise ValueError(
-                f"Error resizing image {nh}x{nw} from original size {h}x{w}"
-            ) from e
+        nh, nw = max(nh, 1), max(nw, 1)
+        img_resized = cv2.resize(img, (nw, nh))
         vertical_pad = (size - nh) // 2
         horizontal_pad = (size - nw) // 2
         img_padded = cv2.copyMakeBorder(
