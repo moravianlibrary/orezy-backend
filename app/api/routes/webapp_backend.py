@@ -3,6 +3,7 @@ import os
 from typing import List
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from app.api.deps import get_db, require_token
 from app.api.utils import format_page_data_list, format_predicted, resize_image
@@ -329,7 +330,7 @@ async def get_title_ids(db=Depends(get_db)):
     """Gets all title IDs from the database.
 
     Returns:
-        list: List of title IDs.
+        dict: Titles containing their IDs, states, creation and modification dates.
     """
-    titles = await db.titles.find({}, {"_id": 1}).to_list(None)
-    return [str(title["_id"]) for title in titles]
+    titles = await db.titles.find({}, {"_id": 1, "state": 1, "created_at": 1, "modified_at": 1}).to_list(None)
+    return jsonable_encoder(titles, custom_encoder={ObjectId: str})

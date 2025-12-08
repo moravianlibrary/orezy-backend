@@ -127,8 +127,7 @@ def copy_images_for_retraining(id, filelist: list[str]) -> list[str]:
         image = Image.open(file_path)
         # Resize to 960 px
         h, w = image.size
-        scale = 960 / max(h, w)
-        nh, nw = int(h * scale), int(w * scale)
+        nh, nw = 960, int(w * (960 / h))
         image = image.resize((nh, nw))
 
         # Save as JPEG

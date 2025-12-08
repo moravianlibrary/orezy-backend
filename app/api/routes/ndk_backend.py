@@ -69,7 +69,7 @@ async def open_webapp(external_id: str, db=Depends(get_db)):
         )
 
     return RedirectResponse(
-        url=urljoin(WEBAPP_URL, f"book/{external_id}"), status_code=301
+        url=urljoin(WEBAPP_URL, f"book/?id={external_id}"), status_code=301
     )
 
 
@@ -111,9 +111,8 @@ async def mark_completed(external_id: str, db=Depends(get_db)):
     scans = [Scan(**scan) for scan in title.get("scans", [])]
     scans = sorted(scans, key=lambda s: s.filename)
     errors = get_wrong_predictions(scans)
-    if (
-        len(errors) > 3
-    ):  # if more than 3 pages were edited by the user, save for retraining
+    # If more than 3 pages were edited by the user, save for retraining
+    if len(errors) > 3:
         # Copy images for retraining, update filepaths
         retrain_filelist = copy_images_for_retraining(title["_id"], title["filelist"])
         for scan, new_file in zip(scans, retrain_filelist):

@@ -59,10 +59,10 @@ def rotate_pages(
 
         # Post-process: fix rotation errors and resize bboxes
         res.predicted_pages = autofix_rotation_errors(res.predicted_pages, res.filename)
-        for bbox in res.predicted_pages:
-            bbox.width, bbox.height = resize_bbox_ratio_by_angle(
-                bbox.width, bbox.height, bbox.angle
-            )
+        #for bbox in res.predicted_pages:
+        #    bbox.width, bbox.height = resize_bbox_ratio_by_angle(
+        #        bbox.width, bbox.height, bbox.angle
+        #    )
 
     return scan_results
 
@@ -104,11 +104,17 @@ def autofix_rotation_errors(pages: list["Page"], filename: str, model=_ensure_ro
     if len(pages) != 2 or abs(pages[0].angle - pages[1].angle) < 3.0:
         return pages
     
-    rerun_idx = 0 if abs(pages[0].angle) > abs(pages[1].angle) else 1
+    if abs(pages[0].angle) > abs(pages[1].angle):
+        rerun_idx = 0
+        new_xc, new_yc, new_w, new_h = (0.25, 0.5, 0.5, 1)
+    else:
+        rerun_idx = 1
+        new_xc, new_yc, new_w, new_h = (0.75, 0.5, 0.5, 1)
+
     dataloader = DataLoader(
         PageAngleDataset(
             image_paths=[filename],
-            image_bboxes=[(0.25, 0.5, 0.5, 1) if rerun_idx == 0 else (0.75, 0.5, 0.5, 1)],
+            image_bboxes=[(new_xc, new_yc, new_w, new_h)],
             is_train=False,
             image_size=640,
             angle_max=10.0,
@@ -122,7 +128,7 @@ def autofix_rotation_errors(pages: list["Page"], filename: str, model=_ensure_ro
     preds = predict_angles(model, dataloader)
 
     pages[rerun_idx].angle = -preds[0]
-    pages[rerun_idx].flags.append(Anomaly.rotation_confidence)
+    pages[rerun_idx].flags.append(Anomaly.low_confidence)
     
     logger.info(f"Autofixed rotation angle for page {rerun_idx} to {pages[rerun_idx].angle:.2f}°")
     return pages
