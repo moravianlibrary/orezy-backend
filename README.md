@@ -24,15 +24,13 @@ To run your application locally, use docker-compose.hatchet-local.yml. Prerequis
 
 .env
 ```
-MONGODB_URI = Url to your MongoDB instance
-MONGODB_DB = DB name
-MONGODB_PASS = Create your DB password
-
-ENABLE_TLS = true
-
-SCANS_VOLUME_PATH = Path where new images will be uploaded via API
 WEBAPP_TOKEN = Create your Bearer token used in API
-
+MONGODB_URI = Url to your MongoDB instance
+MONGODB_PASS = Create your DB password
+MONGODB_DB = DB name
+ENABLE_TLS = true
+SCANS_VOLUME_PATH = Local directory path where new images will be uploaded via API
+RETRAIN_VLUME_PATH = Local directory where images marked for retraining will be saved
 HATCHET_CLIENT_TLS_STRATEGY = none
 HATCHET_CLIENT_TOKEN = Hatchet token. Can be acessed via Hatchet web instance, or created with generate-worker-env.sh
 ```
@@ -45,18 +43,16 @@ Then, run the application in following steps:
 
 ## Production
 
-The production version is stored in docker-compose.yml. There are 2 prerequisites before running the application. First, go over the environment variables in the docker compose, generate and set secrets (DB passwords, tokens) accordingly. Then, create .hatchet-user-env file which creates login parameters for the Hatchet UI. Use strong passwords, as the access to this UI allows spawning custom tasks. The env file has a following structure: 
+The production version is stored in docker-compose.yml, and uses 3 environment files in total, which need to be set accordingly:
 
-.hatchet-user-env
-```
-ADMIN_EMAIL = Admin email you will use for login
-ADMIN_PASSWORD = Setup a password
-ADMIN_NAME = Admin
-```
+- *.env*: A password file. Create this file from .env.example, replace with your generated passwords. You will be regularly using WEBAPP_TOKEN variable for communication with API, the rest is internal to the application.
+- *.hatchet-user-env*: A Hatchet UI login file. Create it from .hatchet-user-env.example. Use strong passwords, as the access to this UI allows spawning custom tasks.
+- *.worker-env*: Contains a JWT token obtained from Hatchet. Generate the file by running `bash generate-worker-env.sh`.
 
-Then, run the application in following steps:
+Inside docker compose itself, there are 2 variables which you can update optionally. SCANS_VOLUME_PATH points to volume used for storing uploaded files (via frontend), and RETRAIN_VOLUME_PATH points to volume with saved images used for retraining.
 
-- `bash generate-worker-env.sh` Generates a Hatchet API token required for communication between the worker and the server. Saves the token into .worker-env, which will be reused in the docker compose.
+Finally, run the application with:
+
 - `docker-compose up -d` Start all services (Hatchet server, PostgreSQL and RabbitMQ as Hatchet backend, MongoDB, API, and worker). API endpoints will be available at http://127.0.0.1:8000/docs , Hatchet UI at http://127.0.0.1:8888/ .
 
 

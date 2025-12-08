@@ -144,6 +144,7 @@ services:
       MONGODB_URI: ${MONGODB_URI}
       MONGODB_DB: "mydb"
       SCANS_VOLUME_PATH: "/upload_data"
+      RETRAIN_VOLUME_PATH: "/retrain_data"
       WEBAPP_TOKEN: ${WEBAPP_TOKEN}
       WEBAPP_FRONTEND_URL: "*"
     healthcheck:
@@ -155,6 +156,7 @@ services:
     restart: unless-stopped
     volumes:
       - scan_data:/upload_data
+      - retrain_data:/retrain_data
 
   worker:
     image: ghcr.io/nvtnlucie/trinera-autocrop:latest
@@ -182,3 +184,4 @@ volumes:
   hatchet_certs:
   mongo_data:
   scan_data:
+  retrain_data:
