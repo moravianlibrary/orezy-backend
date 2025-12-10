@@ -60,8 +60,8 @@ def flag_dimensions_anomalies(scans: list[Scan]) -> list[Scan]:
         areas.append(area)
 
     # Calculate average
-    area_avg = sum(areas) / len(areas)
-    ratio_average = sum(ratios) / len(ratios)
+    area_median = np.median(areas)
+    ratio_median = np.median(ratios)
 
     for scan in scans:
         for page in scan.predicted_pages:
@@ -69,8 +69,8 @@ def flag_dimensions_anomalies(scans: list[Scan]) -> list[Scan]:
             local_area = sum(page.width * page.height for page in scan.predicted_pages)
             # Flag if difference is more than 5%
             if (
-                abs(local_ratio - ratio_average) / ratio_average > 0.05
-                or abs(local_area - area_avg) / area_avg > 0.05
+                abs(local_ratio - ratio_median) / ratio_median > 0.05
+                or abs(local_area - area_median) / area_median > 0.05
             ):
                 page.flags += [Anomaly.dimensions]
     return scans

@@ -130,7 +130,7 @@ services:
       - mongo_data:/data/db
   
   api:  # FastAPI backend
-    image: ghcr.io/nvtnlucie/trinera-autocrop:latest
+    image: trinera/smart-crop:1.0.0
     depends_on:
       mongo-db:
         condition: service_started
@@ -140,13 +140,13 @@ services:
     env_file:
       - .worker-env
     environment:
-      ENABLE_TLS: "false"
+      ENABLE_TLS: false
       MONGODB_URI: ${MONGODB_URI}
-      MONGODB_DB: "mydb"
-      SCANS_VOLUME_PATH: "/upload_data"
-      RETRAIN_VOLUME_PATH: "/retrain_data"
+      MONGODB_DB: mydb
+      SCANS_VOLUME_PATH: /upload_data
+      RETRAIN_VOLUME_PATH: /retrain_data
       WEBAPP_TOKEN: ${WEBAPP_TOKEN}
-      WEBAPP_FRONTEND_URL: "*"
+      WEBAPP_FRONTEND_URL: localhost:1234
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8000/healthz || exit 1"]
       interval: 60s
@@ -159,7 +159,7 @@ services:
       - retrain_data:/retrain_data
 
   worker:
-    image: ghcr.io/nvtnlucie/trinera-autocrop:latest
+    image: trinera/smart-crop:1.0.0
     depends_on:
       api:
         condition: service_started
@@ -169,12 +169,23 @@ services:
     env_file:
       - .worker-env
     environment:
-      ENABLE_TLS: "false"
+      ENABLE_TLS: false
       MONGODB_URI: ${MONGODB_URI}
-      MONGODB_DB: "mydb"
+      MONGODB_DB: mydb
     restart: unless-stopped
     volumes:
        - scan_data:/upload_data
+  
+  web-app:
+    image: trinera/smart-crop-webapp:1.0.0
+    command: npm run start
+    ports:
+      - "1234:80"
+    environment:
+      APP_DATA_SERVER_URL: http://localhost:8000
+      WEBAPP_TOKEN: ${WEBAPP_TOKEN}
+      APP_DEV_MODE: false
+    restart: unless-stopped
 
 volumes:
   hatchet_postgres_data:

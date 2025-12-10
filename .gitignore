@@ -13,3 +13,6 @@ wheels/
 .hatchet-user-env
 .worker-env
 launch.json
+
+# Dev deploy
+.deploy/

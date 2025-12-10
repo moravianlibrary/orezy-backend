@@ -30,7 +30,7 @@ async def create_title(title_data: TitleCreate, db=Depends(get_db)):
         await db.titles.insert_one(doc)
     except DuplicateKeyError:
         raise HTTPException(
-            400, "Title with this external_id already exists", doc["external_id"]
+            400, "Title with this external_id already exists"
         )
     except Exception as e:
         raise HTTPException(400, f"Invalid title data: {e}")
@@ -62,14 +62,16 @@ async def get_title_state(external_id: str, db=Depends(get_db)):
 @router.get("/{external_id}/open")
 async def open_webapp(external_id: str, db=Depends(get_db)):
     """Opens web editor with predicted pages for the given title."""
-    current_state = await get_title_state(external_id, db)
-    if current_state != TaskState.ready:
+    title = await db.titles.find_one({"external_id": external_id})
+    if not title:
+        raise HTTPException(404, "Title not found")
+    if title.get("state") not in [TaskState.ready, TaskState.user_approved]:
         raise HTTPException(
-            400, f"Title is not in a ready state, current state: {current_state}"
+            400, f"Title is not in a ready state, current state: {title.get('state')}"
         )
 
     return RedirectResponse(
-        url=urljoin(WEBAPP_URL, f"book/?id={external_id}"), status_code=301
+        url=urljoin(WEBAPP_URL, f"book/{title['_id']}"), status_code=301
     )
 
 

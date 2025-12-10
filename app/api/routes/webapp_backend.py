@@ -17,7 +17,8 @@ from app.db.schemas import (
 from app.tasks.workflows.workflow_mongo import autocrop_workflow
 
 
-VOLUME_PATH = os.getenv("SCANS_VOLUME_PATH")
+UPLOAD_VOLUME_PATH = os.getenv("SCANS_VOLUME_PATH")
+RETRAIN_VOLUME_PATH = os.getenv("RETRAIN_VOLUME_PATH")
 router = APIRouter(prefix="", tags=["webapp"], dependencies=[Depends(require_token)])
 
 
@@ -43,7 +44,7 @@ async def create_title(title_data: TitleCreate, db=Depends(get_db)):
         result = await db.titles.insert_one(title_dict)
 
         # Create directory for scans
-        os.makedirs(os.path.join(VOLUME_PATH, str(result.inserted_id)), exist_ok=True)
+        os.makedirs(os.path.join(UPLOAD_VOLUME_PATH, str(result.inserted_id)), exist_ok=True)
     except Exception as e:
         await delete_title(str(result.inserted_id), db)
         raise HTTPException(400, f"Invalid title data: {e}")
@@ -68,7 +69,7 @@ async def upload_scan(id: str, scan_data: UploadFile, db=Depends(get_db)):
         )
 
     # Save scan file to volume storage
-    scan_path = os.path.join(VOLUME_PATH, id, scan_data.filename)
+    scan_path = os.path.join(UPLOAD_VOLUME_PATH, id, scan_data.filename)
     with open(scan_path, "wb") as f:
         content = await scan_data.read()
         f.write(content)
@@ -296,13 +297,14 @@ async def delete_title(id: str, db=Depends(get_db)):
     await db.titles.delete_one({"_id": ObjectId(id)})
 
     # Remove associated scans from volume storage
-    if os.path.exists(os.path.join(VOLUME_PATH, str(title["_id"]))):
-        try:
-            for filename in title["filelist"]:
-                os.remove(filename)
-            os.rmdir(os.path.join(VOLUME_PATH, str(title["_id"])))
-        except Exception as e:
-            raise HTTPException(500, f"Failed to delete volume for title {id}: {e}")
+    for volume in [UPLOAD_VOLUME_PATH, RETRAIN_VOLUME_PATH]:
+        if os.path.exists(os.path.join(volume, str(title["_id"]))):
+            try:
+                for filename in title["filelist"]:
+                    os.remove(filename)
+                os.rmdir(os.path.join(volume, str(title["_id"])))
+            except Exception as e:
+                raise HTTPException(500, f"Failed to delete volume for title {id}: {e}")
     return {"detail": "Title and associated scans deleted"}
 
 

@@ -8,8 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 
 app = FastAPI(title="PageTrace API", lifespan=lifespan)
-app.include_router(webapp_backend.router)
 app.include_router(ndk_backend.router)
+app.include_router(webapp_backend.router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -24,9 +24,9 @@ def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
     openapi_schema = get_openapi(
-        title="PageTrace API",
+        title="SmartCrop API",
         version="1.0.0",
-        description="Frontend and NDK integration endpoints",
+        #description="Frontend and NDK integration endpoints",
         routes=app.routes,
     )
     # Add a custom schema
@@ -40,8 +40,3 @@ def custom_openapi():
 
 
 app.openapi = custom_openapi
-
-
-@app.get("/healthz")
-async def healthz():
-    return {"ok": True}

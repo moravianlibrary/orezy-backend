@@ -1,4 +1,4 @@
-FROM ghcr.io/trineracz/orezy-backend-base AS base
+FROM trinera/smart-crop-base AS base
 
 # Copy source code
 COPY app /src/app/
