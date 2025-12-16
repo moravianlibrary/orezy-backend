@@ -128,7 +128,7 @@ services:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
-  
+
   api:  # FastAPI backend
     image: trinera/smart-crop:1.0.0
     depends_on:
@@ -183,7 +183,7 @@ services:
       - "1234:80"
     environment:
       APP_DATA_SERVER_URL: http://localhost:8000
-      WEBAPP_TOKEN: ${WEBAPP_TOKEN}
+      APP_DATA_SERVER_AUTH_TOKEN: ${WEBAPP_TOKEN}
       APP_DEV_MODE: false
     restart: unless-stopped
 

@@ -1,4 +1,13 @@
+# stage 1: get mongodump from official mongo image
+FROM mongo:6.0 AS mongo_tools
+
+# stage 2: your app image
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm
+
+ENV UV_HTTP_TIMEOUT=60
+
+COPY --from=mongo_tools /usr/bin/mongodump /usr/local/bin/mongodump
+RUN chmod +x /usr/local/bin/mongodump && mongodump --version
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl ca-certificates build-essential python3-opencv \
