@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from app.api.deps import get_db, require_token
-from app.api.utils import format_page_data_list, format_predicted, resize_image
+from app.api.utils import format_page_data_list, format_predicted, resize_image, sniff_media_type
 from app.db.schemas import (
     Scan,
     ScanUpdate,
@@ -213,17 +213,12 @@ async def get_scanfile(id: str, scan_id: str, db=Depends(get_db)):
     if not scan:
         raise HTTPException(404, "Scan not found")
 
+    # Get file and filetype
     try:
         file = open(scan["filename"], "rb").read()
+        media_type = sniff_media_type(file[:16])
     except Exception as e:
         raise HTTPException(500, f"Failed to read scan file: {e}")
-    
-    # Determine media type based on file signature
-    media_type = "image/jpeg"
-    if file.endswith(b"\x89PNG\r\n\x1a\n"):
-        media_type = "image/png"
-    if file.startswith(b"II*\x00") or file.startswith(b"MM\x00*"):
-        media_type = "image/tiff"
     return Response(content=file, media_type=media_type)
 
 
@@ -346,7 +341,7 @@ async def get_title_ids(db=Depends(get_db)):
     titles = await db.titles.find(
         {}, {"_id": 1, "state": 1, "created_at": 1, "modified_at": 1}
     ).to_list(None)
-    
-    # Show most recently modified titles first
-    titles = sorted(titles, key=lambda x: x["modified_at"], reverse=True)
+
+    # Show most recently created titles first
+    titles = sorted(titles, key=lambda x: x["created_at"], reverse=True)
     return jsonable_encoder(titles, custom_encoder={ObjectId: str})
