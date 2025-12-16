@@ -39,7 +39,7 @@ def _ensure_db():
     return _db
 
 
-logger = logging.getLogger("auto-crop-ml")
+logger = logging.getLogger(__name__)
 autocrop_workflow = hatchet.workflow(name="autocrop-title-workflow")
 
 

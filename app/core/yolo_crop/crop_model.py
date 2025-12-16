@@ -11,7 +11,7 @@ from app.core.utils import (
 )
 import numpy as np
 
-logger = logging.getLogger("auto-crop-ml")
+logger = logging.getLogger(__name__)
 
 
 crop_model = None

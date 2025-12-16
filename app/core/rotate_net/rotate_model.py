@@ -5,16 +5,14 @@ from app.core.rotate_net.network import AngleDegModel, predict_angles
 from torch.utils.data import DataLoader
 from app.db.schemas import Anomaly, Page, Scan
 
-logger = logging.getLogger("auto-crop-ml")
+logger = logging.getLogger(__name__)
 rotation_model = None
 
 
 def _ensure_rotation_model():
     global rotation_model
     if rotation_model is None:
-        rotation_model = AngleDegModel(
-            model="models/rotate-resnet-200e-best.pth"
-        )
+        rotation_model = AngleDegModel(model="models/rotate-resnet-200e-best.pth")
     return rotation_model
 
 
@@ -59,7 +57,7 @@ def rotate_pages(
 
         # Post-process: fix rotation errors and resize bboxes
         res.predicted_pages = autofix_rotation_errors(res.predicted_pages, res.filename)
-        #for bbox in res.predicted_pages:
+        # for bbox in res.predicted_pages:
         #    bbox.width, bbox.height = resize_bbox_ratio_by_angle(
         #        bbox.width, bbox.height, bbox.angle
         #    )
@@ -89,7 +87,9 @@ def resize_bbox_ratio_by_angle(w_a, h_a, angle_deg):
     return w, h
 
 
-def autofix_rotation_errors(pages: list["Page"], filename: str, model=_ensure_rotation_model()) -> list["Page"]:
+def autofix_rotation_errors(
+    pages: list["Page"], filename: str, model=_ensure_rotation_model()
+) -> list["Page"]:
     """Autofix angles for multi-page scans with conflicting angles.
     Works by rerunning angle prediction with a larger bounding box (covering 50% of the image).
 
@@ -103,7 +103,7 @@ def autofix_rotation_errors(pages: list["Page"], filename: str, model=_ensure_ro
     # Only fix two-page scans where angle difference is larger than 3°
     if len(pages) != 2 or abs(pages[0].angle - pages[1].angle) < 3.0:
         return pages
-    
+
     if abs(pages[0].angle) > abs(pages[1].angle):
         rerun_idx = 0
         new_xc, new_yc, new_w, new_h = (0.25, 0.5, 0.5, 1)
@@ -122,13 +122,15 @@ def autofix_rotation_errors(pages: list["Page"], filename: str, model=_ensure_ro
         batch_size=1,
         shuffle=False,
         num_workers=0,
-        pin_memory=True
+        pin_memory=True,
     )
 
     preds = predict_angles(model, dataloader)
 
     pages[rerun_idx].angle = -preds[0]
     pages[rerun_idx].flags.append(Anomaly.low_confidence)
-    
-    logger.info(f"Autofixed rotation angle for page {rerun_idx} to {pages[rerun_idx].angle:.2f}°")
+
+    logger.info(
+        f"Autofixed rotation angle for page {rerun_idx} to {pages[rerun_idx].angle:.2f}°"
+    )
     return pages

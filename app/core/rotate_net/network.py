@@ -59,4 +59,6 @@ def predict_angles(model, loader: DataLoader) -> np.ndarray:
             imgs = imgs.to(model.device, non_blocking=True)
             outputs = model(imgs)
             preds.append(outputs.detach().cpu().numpy().reshape(-1))
+    if not preds:
+        return np.array([])
     return np.concatenate(preds)

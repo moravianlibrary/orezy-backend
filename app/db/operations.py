@@ -3,7 +3,7 @@ import logging
 from app.db.schemas import Scan, TaskState, Title
 from bson import ObjectId
 
-logger = logging.getLogger("auto-crop-ml")
+logger = logging.getLogger(__name__)
 
 
 def db_update_task_state(title_id: str, new_state: TaskState, db):

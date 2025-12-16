@@ -52,7 +52,9 @@ class PageAngleDataset(Dataset):
         try:
             # Augment images: rotation, translation jitter
             if self.is_train and random.random() < self.aug_rotate_prob:
-                xc, yc, w, h = self._add_jitter(xc, yc, w, h, img_w, img_h, jitter_percent=0.05)
+                xc, yc, w, h = self._add_jitter(
+                    xc, yc, w, h, img_w, img_h, jitter_percent=0.05
+                )
                 angle = random.uniform(-self.angle_max, self.angle_max)
                 img = self._rotate_around_center(img, angle, xc, yc)
 
@@ -66,7 +68,7 @@ class PageAngleDataset(Dataset):
             # Crop
             if x1 < x2 and y1 < y2:
                 img = img[y1:y2, x1:x2]
-            
+
             # Binarize images
             gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
             _, bw = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
@@ -86,7 +88,9 @@ class PageAngleDataset(Dataset):
             img_pil = Image.fromarray(img)
             img_t = self.normalize_tf(img_pil)
         except Exception as e:
-            print(f"Error processing image {img_path}: {e}, {xc}, {yc}, {w}, {h}, {angle}")
+            print(
+                f"Error processing image {img_path}: {e}, {xc}, {yc}, {w}, {h}, {angle}"
+            )
             raise e
         return img_t, torch.tensor([angle], dtype=torch.float32), angle
 
@@ -125,7 +129,16 @@ class PageAngleDataset(Dataset):
         )
         return rotated
 
-    def _add_jitter(self, xc: int, yc: int, w: int, h: int, img_w: int, img_h: int, jitter_percent: float = 0.04) -> tuple[int, int, int, int]:
+    def _add_jitter(
+        self,
+        xc: int,
+        yc: int,
+        w: int,
+        h: int,
+        img_w: int,
+        img_h: int,
+        jitter_percent: float = 0.04,
+    ) -> tuple[int, int, int, int]:
         """Add random jitter to the bounding box coordinates."""
         xc += random.normalvariate(0, jitter_percent * img_w)
         yc += random.normalvariate(0, jitter_percent * img_h)
