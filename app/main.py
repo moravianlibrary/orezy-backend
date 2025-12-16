@@ -1,4 +1,3 @@
-import os
 from fastapi import FastAPI
 from app.api.routes import ndk_backend, webapp_backend
 from app.api.deps import lifespan
@@ -13,7 +12,7 @@ app.include_router(webapp_backend.router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv("WEBAPP_FRONTEND_URL", "*")],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -26,7 +25,6 @@ def custom_openapi():
     openapi_schema = get_openapi(
         title="SmartCrop API",
         version="1.0.0",
-        #description="Frontend and NDK integration endpoints",
         routes=app.routes,
     )
     # Add a custom schema

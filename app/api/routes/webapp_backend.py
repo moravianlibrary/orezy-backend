@@ -14,7 +14,7 @@ from app.db.schemas import (
     Title,
     TitleCreate,
 )
-from app.tasks.workflows.workflow_mongo import autocrop_workflow
+from app.tasks.workflows.smartcrop_workflow import autocrop_workflow
 
 
 UPLOAD_VOLUME_PATH = os.getenv("SCANS_VOLUME_PATH")
@@ -44,7 +44,9 @@ async def create_title(title_data: TitleCreate, db=Depends(get_db)):
         result = await db.titles.insert_one(title_dict)
 
         # Create directory for scans
-        os.makedirs(os.path.join(UPLOAD_VOLUME_PATH, str(result.inserted_id)), exist_ok=True)
+        os.makedirs(
+            os.path.join(UPLOAD_VOLUME_PATH, str(result.inserted_id)), exist_ok=True
+        )
     except Exception as e:
         await delete_title(str(result.inserted_id), db)
         raise HTTPException(400, f"Invalid title data: {e}")
@@ -215,7 +217,14 @@ async def get_scanfile(id: str, scan_id: str, db=Depends(get_db)):
         file = open(scan["filename"], "rb").read()
     except Exception as e:
         raise HTTPException(500, f"Failed to read scan file: {e}")
-    return Response(content=file, media_type="image/jpeg")
+    
+    # Determine media type based on file signature
+    media_type = "image/jpeg"
+    if file.endswith(b"\x89PNG\r\n\x1a\n"):
+        media_type = "image/png"
+    if file.startswith(b"II*\x00") or file.startswith(b"MM\x00*"):
+        media_type = "image/tiff"
+    return Response(content=file, media_type=media_type)
 
 
 @router.get("/{id}/thumbnails/{scan_id}", response_class=Response)
@@ -334,5 +343,10 @@ async def get_title_ids(db=Depends(get_db)):
     Returns:
         dict: Titles containing their IDs, states, creation and modification dates.
     """
-    titles = await db.titles.find({}, {"_id": 1, "state": 1, "created_at": 1, "modified_at": 1}).to_list(None)
+    titles = await db.titles.find(
+        {}, {"_id": 1, "state": 1, "created_at": 1, "modified_at": 1}
+    ).to_list(None)
+    
+    # Show most recently modified titles first
+    titles = sorted(titles, key=lambda x: x["modified_at"], reverse=True)
     return jsonable_encoder(titles, custom_encoder={ObjectId: str})

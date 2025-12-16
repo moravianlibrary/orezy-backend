@@ -7,7 +7,7 @@ import math
 from app.core.utils import cxywh_to_xyxy, denormalize_bbox
 from app.db.schemas import Scan
 
-logger = logging.getLogger("auto-crop-ml")
+logger = logging.getLogger(__name__)
 
 
 def _weighted_median(angles: list[float], weights: list[float]) -> float:

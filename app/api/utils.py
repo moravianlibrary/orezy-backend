@@ -14,7 +14,7 @@ def format_page_data_flat(scans: list[Scan]) -> list[dict]:
     formatted_pages = []
     for scan in sorted(scans, key=lambda s: s.filename):
         pages = (
-            scan.user_edited_pages if scan.user_edited_pages else scan.predicted_pages
+            scan.user_edited_pages if scan.user_edited_pages is not None else scan.predicted_pages
         )
         for page in pages:
             formatted_pages.append(
@@ -35,7 +35,7 @@ def format_page_data_list(scans: list[Scan]) -> list[dict]:
     """Overrides predicted pages with user edited pages if available."""
     formatted_scans = []
     for scan in sorted(scans, key=lambda s: s.filename):
-        if scan.user_edited_pages:
+        if scan.user_edited_pages is not None:
             edited = True
             pages = scan.user_edited_pages
         else:
@@ -58,7 +58,7 @@ def format_page_data_list(scans: list[Scan]) -> list[dict]:
 
 def get_wrong_predictions(scans: list[Scan]) -> int:
     """Returns scans where user edited pages are present."""
-    return [scan for scan in scans if scan.user_edited_pages]
+    return [scan for scan in scans if scan.user_edited_pages is not None]
 
 
 def format_predicted(scans: list[Scan]) -> list[dict]:

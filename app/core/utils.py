@@ -5,7 +5,7 @@ import cv2
 from app.db.schemas import Scan
 
 
-logger = logging.getLogger("auto-crop-ml")
+logger = logging.getLogger(__name__)
 
 
 def denormalize_bbox(
