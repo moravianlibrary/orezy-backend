@@ -12,7 +12,7 @@ from app.api.utils import (
 from app.db.schemas import Scan, TaskState, Title, TitleCreate
 from starlette.responses import RedirectResponse
 from pymongo.errors import DuplicateKeyError
-from app.tasks.workflows.workflow_mongo import autocrop_workflow
+from app.tasks.workflows.smartcrop_workflow import autocrop_workflow
 
 router = APIRouter(prefix="/ndk", tags=["ndk"], dependencies=[Depends(require_token)])
 
@@ -22,16 +22,20 @@ WEBAPP_URL = os.getenv("WEBAPP_FRONTEND_URL", "https://example.com")
 @router.post("/create")
 async def create_title(title_data: TitleCreate, db=Depends(get_db)):
     """Creates a new title and schedules a Hatchet workflow for it."""
+    created_title = title_data.model_dump(by_alias=True)
+
+    # Remove existing title with the same external_id, book is being rescanned
+    title = await db.titles.find_one({"external_id": created_title.get("external_id")})
+    if title and created_title.get("external_id"):
+        await db.titles.delete_one({"external_id": created_title["external_id"]})
+
     try:
-        created_title = title_data.model_dump(by_alias=True)
         doc = Title(**created_title).model_dump(by_alias=True)
         if doc["external_id"] is None:
             doc["external_id"] = str(doc["_id"])
         await db.titles.insert_one(doc)
     except DuplicateKeyError:
-        raise HTTPException(
-            400, "Title with this external_id already exists"
-        )
+        raise HTTPException(400, "Title with this id already exists")
     except Exception as e:
         raise HTTPException(400, f"Invalid title data: {e}")
 
@@ -106,9 +110,6 @@ async def mark_completed(external_id: str, db=Depends(get_db)):
             f"Title is not in an acceptable state (ready, approved), current state: {current_state}",
         )
 
-    # Release external ID so it can be reused
-    new_external_id = f"completed_{title['_id']}"
-
     # Check number of errors from the coordinate prediction model
     scans = [Scan(**scan) for scan in title.get("scans", [])]
     scans = sorted(scans, key=lambda s: s.filename)
@@ -125,7 +126,6 @@ async def mark_completed(external_id: str, db=Depends(get_db)):
             {"external_id": external_id},
             {
                 "$set": {
-                    "external_id": new_external_id,
                     "filelist": retrain_filelist,
                     "scans": [scan.model_dump(by_alias=True) for scan in scans],
                     "state": TaskState.retrain,
@@ -133,17 +133,16 @@ async def mark_completed(external_id: str, db=Depends(get_db)):
                 }
             },
         )
-        return {"state": TaskState.retrain, "new_id": new_external_id}
+        return {"state": TaskState.retrain, "id": external_id}
 
     else:  # Title is correct, mark as completed
         await db.titles.update_one(
             {"external_id": external_id},
             {
                 "$set": {
-                    "external_id": new_external_id,
                     "state": TaskState.completed,
                     "modified_at": datetime.now(),
                 }
             },
         )
-        return {"state": TaskState.completed, "new_id": new_external_id}
+        return {"state": TaskState.completed, "id": external_id}
