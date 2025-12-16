@@ -1,13 +1,17 @@
 import logging
 from app.tasks.hatchet_client import hatchet
-from app.tasks.workflows.workflow_mongo import autocrop_workflow
+from app.tasks.workflows.smartcrop_workflow import autocrop_workflow
+from app.tasks.workflows.maintenance import maintenance_task
+
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("auto-crop-ml")
+logger = logging.getLogger(__name__)
 
 
 def main() -> None:
-    worker = hatchet.worker("crop-worker", slots=1, workflows=[autocrop_workflow])
+    worker = hatchet.worker(
+        "crop-worker", slots=1, workflows=[autocrop_workflow, maintenance_task]
+    )
     worker.start()
 
 
