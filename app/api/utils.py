@@ -136,3 +136,23 @@ def copy_images_for_retraining(id, filelist: list[str]) -> list[str]:
         retrain_filelist.append(os.path.join(path, basename))
 
     return retrain_filelist
+
+def sniff_media_type(sig: bytes) -> str:
+    """Sniffs the media type of a file based on its signature.
+    
+    Args:
+        signature (bytes): File signature bytes.
+    Returns:
+        str: Media type string.
+    """
+    # JPEG
+    if sig.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    # PNG
+    if sig.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    # TIFF (little-endian / big-endian)
+    if sig.startswith(b"II*\x00") or sig.startswith(b"MM\x00*"):
+        return "image/tiff"
+
+    return "application/octet-stream"
