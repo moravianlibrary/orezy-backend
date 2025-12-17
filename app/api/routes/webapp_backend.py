@@ -219,6 +219,11 @@ async def get_scanfile(id: str, scan_id: str, db=Depends(get_db)):
         media_type = sniff_media_type(file[:16])
     except Exception as e:
         raise HTTPException(500, f"Failed to read scan file: {e}")
+    
+    # Convert TIFF to JPEG on the fly
+    if media_type == "image/tiff":
+        media_type = "image/jpeg"
+        file = resize_image(scan["filename"], (1024, 1024))
     return Response(content=file, media_type=media_type)
 
 
