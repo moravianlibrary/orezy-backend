@@ -1,6 +1,7 @@
-# PageTrace application
+# SmartCrop app
 
-This app processes image scans and outputs crop and rotation instructions to extract individual pages.
+SmartCrop is a web application that extracts page coordinates out of scans. When a new book or other scanned media is uploaded, a machine learning model
+predicts the location and angle of pages inside the image. User is then able to review and edit the predictions in a web UI.
 
 ## Application structure
 
@@ -53,7 +54,8 @@ Inside docker compose itself, there are 2 variables which you can update optiona
 
 Finally, run the application with:
 
-- `docker-compose up -d` Start all services (Hatchet server, PostgreSQL and RabbitMQ as Hatchet backend, MongoDB, API, and worker). API endpoints will be available at http://127.0.0.1:8000/docs , Hatchet UI at http://127.0.0.1:8888/ .
+- `docker-compose up -d` Start all services (Hatchet server, PostgreSQL and RabbitMQ as Hatchet backend, MongoDB, API, and worker). API endpoints will be available at http://127.0.0.1:8000/docs , Hatchet UI at http://127.0.0.1:8888/ ,
+and web UI at http://127.0.0.1:1234.
 
 
 # Development
