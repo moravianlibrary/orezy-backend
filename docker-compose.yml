@@ -119,7 +119,7 @@ services:
  
 
   mongo-db:  # DB for backend
-    image: mongo:6.0
+    image: mongo:8.2
     restart: always
     environment:
       MONGO_INITDB_ROOT_USERNAME: autocrop-db-user
