@@ -2,7 +2,7 @@ from io import BytesIO
 import os
 from fastapi.encoders import jsonable_encoder
 from app.core.utils import cxywh_norm_to_xyxy
-from app.db.schemas import Page, Scan
+from app.db.schemas.title import Page, Scan
 from PIL import Image
 
 
@@ -14,7 +14,9 @@ def format_page_data_flat(scans: list[Scan]) -> list[dict]:
     formatted_pages = []
     for scan in sorted(scans, key=lambda s: s.filename):
         pages = (
-            scan.user_edited_pages if scan.user_edited_pages is not None else scan.predicted_pages
+            scan.user_edited_pages
+            if scan.user_edited_pages is not None
+            else scan.predicted_pages
         )
         for page in pages:
             formatted_pages.append(
@@ -137,9 +139,10 @@ def copy_images_for_retraining(id, filelist: list[str]) -> list[str]:
 
     return retrain_filelist
 
+
 def sniff_media_type(sig: bytes) -> str:
     """Sniffs the media type of a file based on its signature.
-    
+
     Args:
         signature (bytes): File signature bytes.
     Returns:

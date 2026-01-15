@@ -1,38 +1,33 @@
-import secrets
 import certifi
-from fastapi import Depends, HTTPException
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import HTTPBearer, OAuth2PasswordBearer
+from app.db.schemas.user import Maintains, Permission, User
 from pydantic_settings import BaseSettings
 from pymongo import AsyncMongoClient
 from contextlib import asynccontextmanager
 import os
+from pwdlib import PasswordHash
+
+from app.db.schemas.user import Role
 
 
 class Settings(BaseSettings):
     mongodb_uri: str = os.getenv("MONGODB_URI")
     mongodb_db: str = os.getenv("MONGODB_DB")
     tls_enabled: bool = os.getenv("ENABLE_TLS", "false").lower() in ("1", "true", "yes")
+    pwd_secret_key: str = os.getenv("PWD_SECRET")
+    pwd_algorithm: str = os.getenv("PWD_ALGORITHM", "HS256")
+    pwd_access_token_expire_minutes: int = int(
+        os.getenv("PASSWD_ACCESS_TOKEN_EXPIRE_MINUTES", "10080")
+    )
 
 
 settings = Settings()
 client: AsyncMongoClient | None = None
 bearer = HTTPBearer(auto_error=False)
+password_hash = PasswordHash.recommended()
 
-
-def require_token(credentials: HTTPAuthorizationCredentials = Depends(bearer)):
-    """Dependency to require a valid bearer token for authentication."""
-    if credentials is None or not credentials.scheme.lower() == "bearer":
-        # Force browsers/clients to prompt correctly:
-        raise HTTPException(
-            status_code=401,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    token = credentials.credentials
-
-    if not secrets.compare_digest(token, os.getenv("WEBAPP_TOKEN")):
-        raise HTTPException(status_code=401, detail="Invalid token")
-    return {"token": token}
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
+require_token = oauth2_scheme
 
 
 @asynccontextmanager
@@ -50,13 +45,9 @@ async def lifespan(app):
     await client.admin.command("ping")
 
     db = get_db()
-    # Create unique index for external_id
-    await db.titles.create_index(
-        [("external_id", 1)],
-        unique=True,
-        name="unique_external_id",
-        partialFilterExpression={"external_id": {"$type": "string"}},
-    )
+    await create_indexes(db)
+    await create_admin(db)
+    await create_default_group(db)
 
     yield
     await client.close()
@@ -66,3 +57,61 @@ def get_db():
     assert client is not None, "DB client not initialized"
     db = client.get_database(settings.mongodb_db)
     return db
+
+
+async def create_default_group(db):
+    """Create a default group if none exists."""
+    existing_group = await db.groups.find_one({"short_name": "DEF"})
+    if existing_group:
+        return
+
+    group = {
+        "name": "Default Group",
+        "short_name": "DEF",
+        "full_name": "Default Group",
+        "description": "This is the default group.",
+    }
+    await db.groups.insert_one(group)
+
+
+async def create_indexes(db):
+    """Create necessary indexes in the database."""
+    await db.titles.create_index(
+        [("external_id", 1)],
+        unique=True,
+        name="unique_external_id",
+        partialFilterExpression={"external_id": {"$type": "string"}},
+    )
+    await db.groups.create_index(
+        [("short_name", 1)], unique=True, name="unique_group_short_name"
+    )
+    await db.users.create_index([("email", 1)], unique=True, name="unique_user_email")
+
+
+async def create_admin(db):
+    """Create an admin user if none exists.
+    Uses ADMIN_EMAIL and ADMIN_PASSWORD env vars.
+    Has all group permissions.
+    """
+    existing_admin = await db.users.find_one({"role": "admin"})
+    if existing_admin:
+        return
+
+    group_ids = await db.groups.distinct("_id")
+    permissions = []
+    for group_id in group_ids:
+        permissions.append(
+            Maintains(group_id=str(group_id), permission=Permission.manage)
+        )
+
+    user = User(
+        full_name="Administrator",
+        email=os.getenv("ADMIN_EMAIL", "admin@example.com"),
+        password=os.getenv("ADMIN_PASSWORD", "adminpass"),
+        role=Role.admin,
+        permissions=permissions,
+    )
+    user = user.model_dump(by_alias=True)
+    user["password"] = password_hash.hash(user["password"])
+
+    await db.users.insert_one(user)
