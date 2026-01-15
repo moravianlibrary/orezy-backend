@@ -30,7 +30,8 @@ def get_password_hash(password):
 
 def generate_password(length: int = 16) -> str:
     alphabet = string.ascii_letters + string.digits + string.punctuation
-    return ''.join(secrets.choice(alphabet) for _ in range(length))
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
 
 async def authenticate_user(db, email: str, password: str):
     """Authenticate a user by their email and password."""
