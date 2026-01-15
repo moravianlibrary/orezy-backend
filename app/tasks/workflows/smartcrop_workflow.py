@@ -6,8 +6,13 @@ import logging
 import certifi
 from pymongo import MongoClient
 from app.core.rotate_net.rotate_model import rotate_pages
-from app.db.operations import db_get_state, db_update_task_state, db_add_scans_bulk
-from app.db.schemas import TaskState, Title, WorkflowOutput
+from app.db.operations.hatchet import (
+    db_get_state,
+    db_update_task_state,
+    db_add_scans_bulk,
+)
+from app.db.schemas.title import TaskState, Title
+from app.db.schemas.workflow import WorkflowOutput
 from app.core.anomalies import (
     flag_dimensions_anomalies,
     flag_low_confidence,

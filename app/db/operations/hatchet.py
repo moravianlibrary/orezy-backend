@@ -1,6 +1,6 @@
 from datetime import datetime
 import logging
-from app.db.schemas import Scan, TaskState, Title
+from app.db.schemas.title import Scan, TaskState, Title
 from bson import ObjectId
 
 logger = logging.getLogger(__name__)

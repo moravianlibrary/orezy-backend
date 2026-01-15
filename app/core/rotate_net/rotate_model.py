@@ -3,7 +3,7 @@ import logging
 from app.core.rotate_net.dataset import PageAngleDataset
 from app.core.rotate_net.network import AngleDegModel, predict_angles
 from torch.utils.data import DataLoader
-from app.db.schemas import Anomaly, Page, Scan
+from app.db.schemas.title import Anomaly, Page, Scan
 
 logger = logging.getLogger(__name__)
 rotation_model = None

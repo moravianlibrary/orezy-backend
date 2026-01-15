@@ -2,7 +2,7 @@ import logging
 import numpy as np
 import cv2
 
-from app.db.schemas import Scan
+from app.db.schemas.title import Scan
 
 
 logger = logging.getLogger(__name__)
