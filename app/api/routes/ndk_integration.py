@@ -9,7 +9,8 @@ from app.api.utils import (
     format_page_data_flat,
     get_wrong_predictions,
 )
-from app.db.schemas import Scan, TaskState, Title, TitleCreate
+from app.db.operations.api import db_link_titles_to_group_bulk
+from app.db.schemas.title import Scan, TaskState, Title, TitleCreate
 from starlette.responses import RedirectResponse
 from pymongo.errors import DuplicateKeyError
 from app.tasks.workflows.smartcrop_workflow import autocrop_workflow
@@ -34,6 +35,12 @@ async def create_title(title_data: TitleCreate, db=Depends(get_db)):
         if doc["external_id"] is None:
             doc["external_id"] = str(doc["_id"])
         await db.titles.insert_one(doc)
+
+        # Assign to the default group
+        default_group = await db.groups.find_one({"short_name": "DEF"})
+        await db_link_titles_to_group_bulk(
+            title_ids=[doc["_id"]], group_id=default_group["_id"], db=db
+        )
     except DuplicateKeyError:
         raise HTTPException(400, "Title with this id already exists")
     except Exception as e:
