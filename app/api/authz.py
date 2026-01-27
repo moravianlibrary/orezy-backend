@@ -1,6 +1,6 @@
 from bson import ObjectId
 from fastapi import Depends, HTTPException, status
-from app.api.deps import get_db
+from app.api.setup_db import get_db
 from app.db.schemas.user import Role, Permission, User
 from app.api.authn import get_current_user
 

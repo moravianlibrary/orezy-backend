@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from app.api.routes import groups, ndk_integration, titles, users
-from app.api.deps import lifespan
+from app.api.setup_db import lifespan
 from fastapi.openapi.utils import get_openapi
 from app.db.schemas.title import TaskState
 from fastapi.middleware.cors import CORSMiddleware

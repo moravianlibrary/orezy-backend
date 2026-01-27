@@ -25,15 +25,22 @@ To run your application locally, use docker-compose.hatchet-local.yml. Prerequis
 
 .env
 ```
-WEBAPP_TOKEN = Create your Bearer token used in API
 MONGODB_URI = Url to your MongoDB instance
 MONGODB_PASS = Create your DB password
 MONGODB_DB = DB name
 ENABLE_TLS = true
+
 SCANS_VOLUME_PATH = Local directory path where new images will be uploaded via API
 RETRAIN_VLUME_PATH = Local directory where images marked for retraining will be saved
+
 HATCHET_CLIENT_TLS_STRATEGY = none
 HATCHET_CLIENT_TOKEN = Hatchet token. Can be acessed via Hatchet web instance, or created with generate-worker-env.sh
+
+PWD_SECRET = JWT secret used to compare credentials
+WEBAPP_TOKEN = Create your Bearer token used in NDK API endpoints
+ADMIN_EMAIL = Your login username for the API
+ADMIN_PASSWORD = Your login password for the API
+ADMIN_NAME = Name of the user
 ```
 
 Then, run the application in following steps:

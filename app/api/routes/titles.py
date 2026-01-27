@@ -7,7 +7,7 @@ from fastapi.encoders import jsonable_encoder
 from app.api.limiter import limiter
 from app.api.authn import get_current_user
 from app.api.authz import from_group_id, from_title_id, require_group_permission
-from app.api.deps import get_db, require_token
+from app.api.setup_db import get_db
 from app.api.utils import (
     format_page_data_list,
     format_predicted,
@@ -28,7 +28,7 @@ from app.tasks.workflows.smartcrop_workflow import autocrop_workflow
 
 UPLOAD_VOLUME_PATH = os.getenv("SCANS_VOLUME_PATH")
 RETRAIN_VOLUME_PATH = os.getenv("RETRAIN_VOLUME_PATH")
-router = APIRouter(prefix="", tags=["webapp"], dependencies=[Depends(require_token)])
+router = APIRouter(prefix="", tags=["webapp"])
 
 
 @limiter.limit("60/minute;600/hour")

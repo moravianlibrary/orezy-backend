@@ -1,20 +1,38 @@
 from datetime import datetime, timedelta, timezone
+import os
 import secrets
 import string
 from typing import Annotated
 
+from fastapi.security import HTTPAuthorizationCredentials
 import jwt
 from fastapi import Depends, HTTPException, status
-from app.api.deps import get_db
-from app.api.deps import password_hash, oauth2_scheme, settings
+from app.api.setup_db import get_db
+from app.api.setup_db import password_hash, oauth2_scheme, bearer
+from app.deps import settings_api
 from pydantic import BaseModel
 
 from app.db.schemas.user import User
 
-
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+
+def require_token(credentials: HTTPAuthorizationCredentials = Depends(bearer)):
+    """Dependency to require a valid bearer token for static authentication (NDK)."""
+    if credentials is None or not credentials.scheme.lower() == "bearer":
+        # Force browsers/clients to prompt correctly:
+        raise HTTPException(
+            status_code=401,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    token = credentials.credentials
+
+    if not secrets.compare_digest(token, os.getenv("WEBAPP_TOKEN")):
+        raise HTTPException(status_code=401, detail="Invalid token")
+    return {"token": token}
 
 
 def verify_password(plain_password, hashed_password):
@@ -68,7 +86,7 @@ async def authenticate_user(db, email: str, password: str) -> User | bool:
 
 
 def create_access_token(
-    data: dict, expires_delta: timedelta = settings.pwd_access_token_expire_minutes
+    data: dict, expires_delta: timedelta = settings_api.pwd_access_token_expire_minutes
 ):
     """Create a JWT access token.
 
@@ -83,7 +101,7 @@ def create_access_token(
     expire = datetime.now(timezone.utc) + expires_delta
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(
-        to_encode, settings.pwd_secret_key, algorithm=settings.pwd_algorithm
+        to_encode, settings_api.pwd_secret_key, algorithm=settings_api.pwd_algorithm
     )
     return encoded_jwt
 
@@ -103,7 +121,7 @@ async def get_current_user(
     """
     try:
         payload = jwt.decode(
-            token, settings.pwd_secret_key, algorithms=[settings.pwd_algorithm]
+            token, settings_api.pwd_secret_key, algorithms=[settings_api.pwd_algorithm]
         )
         email = payload.get("sub")
         user = await db.users.find_one({"email": email})

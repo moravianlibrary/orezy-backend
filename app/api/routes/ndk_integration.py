@@ -3,7 +3,8 @@ import os
 from urllib.parse import urljoin
 from fastapi import APIRouter, Depends, HTTPException
 import grpc
-from app.api.deps import get_db, require_token
+from app.api.setup_db import get_db
+from app.api.authn import require_token
 from app.api.utils import (
     copy_images_for_retraining,
     format_page_data_flat,
@@ -17,7 +18,7 @@ from app.tasks.workflows.smartcrop_workflow import autocrop_workflow
 
 router = APIRouter(prefix="/ndk", tags=["ndk"], dependencies=[Depends(require_token)])
 
-WEBAPP_URL = os.getenv("WEBAPP_FRONTEND_URL", "https://example.com")
+WEBAPP_URL = os.getenv("WEBAPP_FRONTEND_URL")
 
 
 @router.post("/create")

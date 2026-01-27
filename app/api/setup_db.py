@@ -3,33 +3,20 @@ from fastapi.security import HTTPBearer, OAuth2PasswordBearer
 from app.db.operations.api import add_users_to_group_bulk
 from app.db.schemas.group import Group
 from app.db.schemas.user import Maintains, Permission, User
-from pydantic_settings import BaseSettings
 from pymongo import AsyncMongoClient
 from contextlib import asynccontextmanager
 import os
 from pwdlib import PasswordHash
+from app.deps import settings_db
 
 from app.db.schemas.user import Role
 
 
-class Settings(BaseSettings):
-    mongodb_uri: str = os.getenv("MONGODB_URI")
-    mongodb_db: str = os.getenv("MONGODB_DB")
-    tls_enabled: bool = os.getenv("ENABLE_TLS", "false").lower() in ("1", "true", "yes")
-    pwd_secret_key: str = os.getenv("PWD_SECRET")
-    pwd_algorithm: str = os.getenv("PWD_ALGORITHM", "HS256")
-    pwd_access_token_expire_minutes: int = int(
-        os.getenv("PASSWD_ACCESS_TOKEN_EXPIRE_MINUTES", "10080")
-    )
 
-
-settings = Settings()
 client: AsyncMongoClient | None = None
-bearer = HTTPBearer(auto_error=False)
+bearer = HTTPBearer(auto_error=False) # for static token auth of NDK endpoints
 password_hash = PasswordHash.recommended()
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
-require_token = oauth2_scheme
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login") # for user auth via JWT tokens
 
 
 @asynccontextmanager
@@ -40,10 +27,10 @@ async def lifespan(app):
         "serverSelectionTimeoutMS": 5000,
         "uuidRepresentation": "standard",
     }
-    if settings.tls_enabled:
+    if settings_db.tls_enabled:
         client_kwargs["tlsCAFile"] = certifi.where()
 
-    client = AsyncMongoClient(settings.mongodb_uri, **client_kwargs)
+    client = AsyncMongoClient(settings_db.mongodb_uri, **client_kwargs)
     await client.admin.command("ping")
 
     db = get_db()
@@ -57,7 +44,7 @@ async def lifespan(app):
 
 def get_db():
     assert client is not None, "DB client not initialized"
-    db = client.get_database(settings.mongodb_db)
+    db = client.get_database(settings_db.mongodb_db)
     return db
 
 
@@ -114,7 +101,7 @@ async def create_admin(db):
         permissions.append(Maintains(group_id=group_id, permission=Permission.manage))
 
     user = User(
-        full_name="Main Administrator",
+        full_name=os.getenv("ADMIN_NAME"),
         email=os.getenv("ADMIN_EMAIL"),
         password=os.getenv("ADMIN_PASSWORD"),
         role=Role.admin,

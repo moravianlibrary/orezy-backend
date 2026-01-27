@@ -5,7 +5,7 @@ from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.encoders import jsonable_encoder
 from app.api.limiter import limiter
-from app.api.deps import get_db
+from app.api.setup_db import get_db
 from app.api.authz import require_role
 from app.db.schemas.group import Group, GroupCreate, GroupUpdate
 from app.db.schemas.user import Maintains, Permission, Role, User
