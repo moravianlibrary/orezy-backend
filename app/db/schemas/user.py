@@ -1,12 +1,10 @@
 from datetime import datetime
 from enum import Enum
 import re
-import secrets
-import string
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.db.schemas.base import BaseModelWithId
+from app.db.schemas.base import BaseModelWithId, ObjectIdField
 
 
 class Role(str, Enum):
@@ -21,7 +19,9 @@ class Permission(str, Enum):
 
 
 class Maintains(BaseModel):
-    group_id: str
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    group_id: ObjectIdField
     permission: Permission
     created_at: datetime = Field(default_factory=datetime.now)
 
@@ -39,6 +39,7 @@ class User(BaseModelWithId):
         if not re.match(pattern, v or ""):
             raise ValueError("Invalid email address")
         return v.lower()
+
 
 class UserCreate(BaseModel):
     email: str

@@ -1,12 +1,13 @@
 from pydantic import (
     BaseModel,
+    ConfigDict,
     Field,
     model_validator,
 )
 from datetime import datetime
 from enum import Enum
 
-from app.db.schemas.base import BaseModelWithId
+from app.db.schemas.base import BaseModelWithId, ObjectIdField
 
 
 class Anomaly(str, Enum):
@@ -67,6 +68,8 @@ class ScanUpdate(BaseModelWithId):
 
 
 class TitleCreate(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     external_id: str | None = None
     filelist: list[str] = Field(default_factory=list)
     crop_method: CropMethod = Field(default=CropMethod.inner)
@@ -92,7 +95,7 @@ class Title(BaseModelWithId):
     state: TaskState = Field(default=TaskState.new)
     scans: list[Scan] = Field(default_factory=list)
 
-    group_id: str | None = None
+    group_id: ObjectIdField | None = None
 
     crop_type_code: str | None = None
     double_page: bool = False
