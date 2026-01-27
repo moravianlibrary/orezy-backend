@@ -223,9 +223,10 @@ async def get_scans(
 
     scans = [Scan(**scan) for scan in title.get("scans", [])]
     scans = sorted(scans, key=lambda s: s.filename)
-    pages = format_page_data_list(scans)
+    title["scans"] = format_page_data_list(scans)
+    title = jsonable_encoder(title, custom_encoder={ObjectId: str}, exclude=["filelist", "external_id"])
 
-    return pages
+    return title
 
 
 @limiter.limit("60/minute;600/hour")
@@ -252,8 +253,9 @@ async def get_predicted_pages(request: Request, title_id: str, db=Depends(get_db
 
     scans = [Scan(**scan) for scan in title.get("scans", [])]
     scans = sorted(scans, key=lambda s: s.filename)
-    scans = format_predicted(scans)
-    return scans
+    title["scans"] = format_predicted(scans)
+    title = jsonable_encoder(title, custom_encoder={ObjectId: str}, exclude=["filelist", "external_id"])
+    return title
 
 
 @limiter.limit("2000/minute")
@@ -414,6 +416,12 @@ async def delete_title(request: Request, title_id: str, db=Depends(get_db)):
     if not title:
         raise HTTPException(404, "Title not found")
 
+    # Delete from group
+    await db.groups.update_one(
+        {"_id": ObjectId(title["group_id"])},
+        {"$pull": {"title_ids": ObjectId(title_id)}},
+    )
+    # Delete title from DB
     await db.titles.delete_one({"_id": ObjectId(title_id)})
 
     # Remove associated scans from volume storage
@@ -470,7 +478,7 @@ async def reset_predictions(
 
 @limiter.limit("2000/minute")
 @router.get(
-    "/titles",
+    "{group_id}/titles",
     dependencies=[
         Depends(
             require_group_permission(Permission.read, group_id_provider=from_group_id)

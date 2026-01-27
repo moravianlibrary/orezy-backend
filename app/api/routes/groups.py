@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 from typing import Annotated
 
@@ -6,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.encoders import jsonable_encoder
 from app.api.limiter import limiter
 from app.api.setup_db import get_db
-from app.api.authz import require_role
+from app.api.authz import from_group_id, require_group_permission, require_role
 from app.db.schemas.group import Group, GroupCreate, GroupUpdate
 from app.db.schemas.user import Maintains, Permission, Role, User
 from app.api.authn import (
@@ -25,14 +26,55 @@ async def list_groups(
     db=Depends(get_db),
 ):
     """Lists all groups user belongs to."""
-    user_group_ids = await db.users.distinct(
-        "permissions.group_id", {"_id": current_user.id}
-    )
-    user_group_ids = [ObjectId(gid) for gid in user_group_ids]
+    user_group_ids = [ObjectId(perm.group_id) for perm in current_user.permissions]
     groups = await db.groups.find({"_id": {"$in": user_group_ids}}).to_list(
         length=None
     )
+    # join permission with groups
+    for group in groups:
+        group["title_count"] = len(group["title_ids"])
+        group.pop("title_ids", None)
+        for perm in current_user.permissions:
+            if group["_id"] == perm.group_id:
+                group["permission"] = perm.permission
+                break
+
     return jsonable_encoder(groups, custom_encoder={ObjectId: str})
+
+@limiter.limit("2000/minute")
+@router.get(
+    "/{group_id}",
+    dependencies=[
+        Depends(
+            require_group_permission(Permission.read, group_id_provider=from_group_id)
+        )
+    ],
+)
+async def get_title_ids(request: Request, group_id: str, db=Depends(get_db)):
+    """Gets all title IDs from the database.
+
+    Returns:
+        dict: Titles containing their IDs, states, creation and modification dates.
+    """
+    if not ObjectId.is_valid(group_id):
+        raise HTTPException(400, f"ID '{group_id}' is not a valid ObjectId")
+    
+    group = await db.groups.find_one({"_id": ObjectId(group_id)})
+    if not group:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Group not found"
+        )
+
+    titles = await db.titles.find(
+        {"group_id": ObjectId(group_id)},
+        {"_id": 1, "state": 1, "created_at": 1, "modified_at": 1},
+    ).to_list(None)
+
+    # Show most recently created titles first
+    titles = sorted(titles, key=lambda x: x["created_at"], reverse=True)
+
+    group["titles"] = titles
+    return jsonable_encoder(group, custom_encoder={ObjectId: str}, exclude=["title_ids"])
 
 
 @limiter.limit("60/minute;600/hour")
@@ -130,8 +172,9 @@ async def update_group(
         )
 
     update_data = {k: v for k, v in group.model_dump().items() if v is not None}
+    update_data["modified_at"] = datetime.now()
     if update_data:
-        await db.groups.update_one(
+        await db.groups.update_one( 
             {"_id": ObjectId(group_id)},
             {"$set": update_data},
         )
