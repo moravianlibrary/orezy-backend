@@ -1,4 +1,4 @@
-FROM trinera/smart-crop-base:latest AS base
+FROM trinera/smart-crop-base:1.0.1-rc AS base
 
 # Copy source code
 COPY app /src/app/

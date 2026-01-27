@@ -38,7 +38,7 @@ HATCHET_CLIENT_TOKEN = Hatchet token. Can be acessed via Hatchet web instance, o
 
 Then, run the application in following steps:
 
-- `docker-compose up -f docker-compose.hatchet-local.yml -d` Start required services (Hatchet server, PostgreSQL and RabbitMQ as Hatchet backend)
+- `docker-compose -f docker-compose.hatchet-local.yml up -d` Start required services (Hatchet server, PostgreSQL and RabbitMQ as Hatchet backend)
 - `uv run --env-file .env fastapi dev`  Start API locally, Swagger UI will be available at http://127.0.0.1:8000/docs
 - `uv run --env-file .env -m app.tasks.worker`  Start worker locally. The UI is available at http://127.0.0.1:8888/
 

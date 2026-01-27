@@ -1,5 +1,5 @@
 # stage 1: get mongodump from official mongo image
-FROM mongo:6.0 AS mongo_tools
+FROM mongo:8.0 AS mongo_tools
 
 # stage 2: your app image
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm

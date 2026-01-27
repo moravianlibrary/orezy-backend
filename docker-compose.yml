@@ -147,6 +147,9 @@ services:
       RETRAIN_VOLUME_PATH: /retrain_data
       WEBAPP_TOKEN: ${WEBAPP_TOKEN}
       WEBAPP_FRONTEND_URL: localhost:1234
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      PWD_SECRET: ${PWD_SECRET}
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8000/healthz || exit 1"]
       interval: 60s
@@ -183,7 +186,6 @@ services:
       - "1234:80"
     environment:
       APP_DATA_SERVER_URL: http://localhost:8000
-      APP_DATA_SERVER_AUTH_TOKEN: ${WEBAPP_TOKEN}
       APP_DEV_MODE: false
     restart: unless-stopped
 
