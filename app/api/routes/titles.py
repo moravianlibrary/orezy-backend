@@ -2,8 +2,9 @@ from datetime import datetime
 import os
 from typing import Annotated
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile
 from fastapi.encoders import jsonable_encoder
+from app.api.limiter import limiter
 from app.api.authn import get_current_user
 from app.api.authz import from_group_id, from_title_id, require_group_permission
 from app.api.deps import get_db, require_token
@@ -30,6 +31,7 @@ RETRAIN_VOLUME_PATH = os.getenv("RETRAIN_VOLUME_PATH")
 router = APIRouter(prefix="", tags=["webapp"], dependencies=[Depends(require_token)])
 
 
+@limiter.limit("60/minute;600/hour")
 @router.post(
     "/create",
     dependencies=[
@@ -39,6 +41,7 @@ router = APIRouter(prefix="", tags=["webapp"], dependencies=[Depends(require_tok
     ],
 )
 async def create_title(
+    request: Request,
     group_id: str,
     title_data: TitleCreate,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -56,7 +59,7 @@ async def create_title(
         # Create title entry in DB
         created_title = title_data.model_dump(by_alias=True)
         title_dict = Title(**created_title).model_dump(by_alias=True)
-        title_dict["state"] = "new"
+        title_dict["state"] = TaskState.new
         title_dict["filelist"] = []
         title_dict["external_id"] = str(title_dict["_id"])
         title_dict["modified_by"] = current_user.email
@@ -68,7 +71,7 @@ async def create_title(
         )
         # Link title to group
         await db_link_titles_to_group_bulk(
-            title_ids=[result.inserted_id], group_id=group_id, db=db
+            title_ids=[result.inserted_id], group_id=ObjectId(group_id), db=db
         )
     except Exception as e:
         await delete_title(str(result.inserted_id), db)
@@ -76,6 +79,7 @@ async def create_title(
     return {"id": str(result.inserted_id)}
 
 
+@limiter.limit("2000/minute")
 @router.post(
     "/{title_id}/upload-scan",
     dependencies=[
@@ -85,6 +89,7 @@ async def create_title(
     ],
 )
 async def upload_scan(
+    request: Request,
     title_id: str,
     current_user: Annotated[User, Depends(get_current_user)],
     scan_data: UploadFile,
@@ -122,6 +127,7 @@ async def upload_scan(
     return {"id": title_id, "filename": scan_data.filename}
 
 
+@limiter.limit("60/minute;600/hour")
 @router.post(
     "/{title_id}/process",
     dependencies=[
@@ -130,7 +136,7 @@ async def upload_scan(
         )
     ],
 )
-async def process_title(title_id: str, db=Depends(get_db)):
+async def process_title(request: Request, title_id: str, db=Depends(get_db)):
     """Moves title into state 'scheduled' and starts the ML prediction workflow.
 
     Returns:
@@ -185,6 +191,7 @@ async def get_title_state(title_id: str, db=Depends(get_db)):
     return title.get("state")
 
 
+@limiter.limit("2000/minute")
 @router.get(
     "/{title_id}/scans",
     dependencies=[
@@ -193,8 +200,10 @@ async def get_title_state(title_id: str, db=Depends(get_db)):
         )
     ],
 )
-async def get_scans(title_id: str, db=Depends(get_db)):
-    """Gets crop instructions for all pages.
+async def get_scans(
+    request: Request, title_id: str, scan_id: str | None = None, db=Depends(get_db)
+):
+    """Gets crop instructions for all pages, can be filtered to get specific scan page by ID.
 
     Returns:
         list: List of scans with page crop instructions.
@@ -202,7 +211,13 @@ async def get_scans(title_id: str, db=Depends(get_db)):
     if not ObjectId.is_valid(title_id):
         raise HTTPException(400, f"ID '{title_id}' is not a valid ObjectId")
 
-    title = await db.titles.find_one({"_id": ObjectId(title_id)})
+    if scan_id:
+        title = await db.titles.find_one(
+            {"scans._id": ObjectId(scan_id), "_id": ObjectId(title_id)},
+            {"scans": {"$elemMatch": {"_id": ObjectId(scan_id)}}},
+        )
+    else:
+        title = await db.titles.find_one({"_id": ObjectId(title_id)})
     if not title:
         raise HTTPException(404, "Title not found")
 
@@ -213,34 +228,7 @@ async def get_scans(title_id: str, db=Depends(get_db)):
     return pages
 
 
-@router.get(
-    "/{title_id}/scans",
-    dependencies=[
-        Depends(
-            require_group_permission(Permission.read, group_id_provider=from_title_id)
-        )
-    ],
-)
-async def get_pages_for_scan(title_id: str, scan_id: str, db=Depends(get_db)):
-    """Gets crop instructions for a specific file (scan).
-
-    Returns:
-        dict: Scan with page crop instructions.
-    """
-    if not ObjectId.is_valid(scan_id):
-        raise HTTPException(400, f"ID '{scan_id}' is not a valid ObjectId")
-
-    scan = await db.titles.find_one(
-        {"scans._id": ObjectId(scan_id), "_id": ObjectId(title_id)},
-        {"scans": {"$elemMatch": {"_id": ObjectId(scan_id)}}},
-    )
-    if not scan:
-        raise HTTPException(404, "Scan not found")
-
-    pages = format_page_data_list([Scan(**scan["scans"])])
-    return pages
-
-
+@limiter.limit("60/minute;600/hour")
 @router.get(
     "/{title_id}/predicted-scans",
     dependencies=[
@@ -249,7 +237,7 @@ async def get_pages_for_scan(title_id: str, scan_id: str, db=Depends(get_db)):
         )
     ],
 )
-async def get_predicted_pages(title_id: str, db=Depends(get_db)):
+async def get_predicted_pages(request: Request, title_id: str, db=Depends(get_db)):
     """Gets predictions for all scans (without user edits).
 
     Returns:
@@ -268,6 +256,7 @@ async def get_predicted_pages(title_id: str, db=Depends(get_db)):
     return scans
 
 
+@limiter.limit("2000/minute")
 @router.get(
     "/{title_id}/files",
     response_class=Response,
@@ -277,7 +266,9 @@ async def get_predicted_pages(title_id: str, db=Depends(get_db)):
         )
     ],
 )
-async def get_scanfile(title_id: str, scan_id: str, db=Depends(get_db)):
+async def get_scanfile(
+    request: Request, title_id: str, scan_id: str, db=Depends(get_db)
+):
     """Gets image of a specific scan.
 
     Returns:
@@ -308,6 +299,7 @@ async def get_scanfile(title_id: str, scan_id: str, db=Depends(get_db)):
     return Response(content=file, media_type=media_type)
 
 
+@limiter.limit("2000/minute")
 @router.get(
     "/{title_id}/thumbnails",
     response_class=Response,
@@ -317,7 +309,9 @@ async def get_scanfile(title_id: str, scan_id: str, db=Depends(get_db)):
         )
     ],
 )
-async def get_thumbnail(title_id: str, scan_id: str, db=Depends(get_db)):
+async def get_thumbnail(
+    request: Request, title_id: str, scan_id: str, db=Depends(get_db)
+):
     """Gets a thumbnail for a specific scan of a title.
 
     Returns:
@@ -338,6 +332,7 @@ async def get_thumbnail(title_id: str, scan_id: str, db=Depends(get_db)):
     return Response(content=thumbnail, media_type="image/jpeg")
 
 
+@limiter.limit("60/minute;600/hour")
 @router.patch(
     "/{title_id}/update-pages",
     dependencies=[
@@ -347,6 +342,7 @@ async def get_thumbnail(title_id: str, scan_id: str, db=Depends(get_db)):
     ],
 )
 async def update_pages(
+    request: Request,
     title_id: str,
     scans: list[ScanUpdate],
     current_user: Annotated[User, Depends(get_current_user)],
@@ -400,6 +396,7 @@ async def update_pages(
     return {"id": title_id}
 
 
+@limiter.limit("60/minute;600/hour")
 @router.delete(
     "/{title_id}",
     dependencies=[
@@ -408,7 +405,7 @@ async def update_pages(
         )
     ],
 )
-async def delete_title(title_id: str, db=Depends(get_db)):
+async def delete_title(request: Request, title_id: str, db=Depends(get_db)):
     """Deletes a title and all associated saved files."""
     if not ObjectId.is_valid(title_id):
         raise HTTPException(400, f"ID '{title_id}' is not a valid ObjectId")
@@ -433,6 +430,7 @@ async def delete_title(title_id: str, db=Depends(get_db)):
     return {"detail": "Title and associated scans deleted"}
 
 
+@limiter.limit("60/minute;600/hour")
 @router.patch(
     "/{title_id}/reset",
     dependencies=[
@@ -442,6 +440,7 @@ async def delete_title(title_id: str, db=Depends(get_db)):
     ],
 )
 async def reset_predictions(
+    request: Request,
     title_id: str,
     current_user: Annotated[User, Depends(get_current_user)],
     db=Depends(get_db),
@@ -469,6 +468,7 @@ async def reset_predictions(
     return await get_scans(title_id, db)
 
 
+@limiter.limit("2000/minute")
 @router.get(
     "/titles",
     dependencies=[
@@ -477,7 +477,7 @@ async def reset_predictions(
         )
     ],
 )
-async def get_title_ids(group_id: str, db=Depends(get_db)):
+async def get_title_ids(request: Request, group_id: str, db=Depends(get_db)):
     """Gets all title IDs from the database.
 
     Returns:
@@ -487,7 +487,7 @@ async def get_title_ids(group_id: str, db=Depends(get_db)):
         raise HTTPException(400, f"ID '{group_id}' is not a valid ObjectId")
 
     titles = await db.titles.find(
-        {"group_id": group_id},
+        {"group_id": ObjectId(group_id)},
         {"_id": 1, "state": 1, "created_at": 1, "modified_at": 1},
     ).to_list(None)
 

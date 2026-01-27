@@ -1,5 +1,7 @@
 import certifi
 from fastapi.security import HTTPBearer, OAuth2PasswordBearer
+from app.db.operations.api import add_users_to_group_bulk
+from app.db.schemas.group import Group
 from app.db.schemas.user import Maintains, Permission, User
 from pydantic_settings import BaseSettings
 from pymongo import AsyncMongoClient
@@ -65,13 +67,21 @@ async def create_default_group(db):
     if existing_group:
         return
 
-    group = {
-        "name": "Default Group",
-        "short_name": "DEF",
-        "full_name": "Default Group",
-        "description": "This is the default group.",
-    }
+    group = Group(
+        short_name="DEF",
+        full_name="Default Group",
+        description="Default group for new titles and users.",
+    ).model_dump(by_alias=True)
     await db.groups.insert_one(group)
+
+    # Add admins to default group
+    admin_users = await db.users.find({"role": Role.admin.value}).to_list(length=None)
+    await add_users_to_group_bulk(
+        group_id=group["_id"],
+        user_ids=[user["_id"] for user in admin_users],
+        permission=Permission.manage,
+        db=db,
+    )
 
 
 async def create_indexes(db):
@@ -86,6 +96,7 @@ async def create_indexes(db):
         [("short_name", 1)], unique=True, name="unique_group_short_name"
     )
     await db.users.create_index([("email", 1)], unique=True, name="unique_user_email")
+    await db.users.create_index([("role", 1)], name="role_index")
 
 
 async def create_admin(db):
@@ -100,14 +111,12 @@ async def create_admin(db):
     group_ids = await db.groups.distinct("_id")
     permissions = []
     for group_id in group_ids:
-        permissions.append(
-            Maintains(group_id=str(group_id), permission=Permission.manage)
-        )
+        permissions.append(Maintains(group_id=group_id, permission=Permission.manage))
 
     user = User(
-        full_name="Administrator",
-        email=os.getenv("ADMIN_EMAIL", "admin@example.com"),
-        password=os.getenv("ADMIN_PASSWORD", "adminpass"),
+        full_name="Main Administrator",
+        email=os.getenv("ADMIN_EMAIL"),
+        password=os.getenv("ADMIN_PASSWORD"),
         role=Role.admin,
         permissions=permissions,
     )

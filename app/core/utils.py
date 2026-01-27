@@ -40,6 +40,18 @@ def cxywh_norm_to_xyxy(
     return round(x1, 4), round(y1, 4), round(x2, 4), round(y2, 4)
 
 
+def cxywh_norm_to_ltrb_rotated(
+    xc: float, yc: float, w: float, h: float, angle: float
+) -> tuple[float, float, float, float]:
+    """Converts bounding box from center x, center y, width, height to rotated box points."""
+    rect = ((xc, yc), (w, h), angle)
+    box = cv2.boxPoints(rect)  # float32
+    top, bottom = box[:, 1].min(), box[:, 1].max()
+    left, right = box[:, 0].min(), box[:, 0].max()
+
+    return float(left), float(top), float(right), float(bottom)
+
+
 def bbox_union(boxes: np.ndarray) -> np.ndarray:
     """Returns a bounding box that covers all given boxes.
 

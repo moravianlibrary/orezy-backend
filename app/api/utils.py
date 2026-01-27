@@ -1,7 +1,7 @@
 from io import BytesIO
 import os
 from fastapi.encoders import jsonable_encoder
-from app.core.utils import cxywh_norm_to_xyxy
+from app.core.utils import cxywh_norm_to_ltrb_rotated
 from app.db.schemas.title import Page, Scan
 from PIL import Image
 
@@ -81,17 +81,13 @@ def format_predicted(scans: list[Scan]) -> list[dict]:
 def _page_object_to_dict(pages: list[Page]) -> list[dict]:
     """Formats page data from obj to dict, adding xyxy coordinates."""
     pages = jsonable_encoder(pages, exclude={"confidence"})
-    for page in pages:
-        left, top, right, bottom = cxywh_norm_to_xyxy(
-            page["xc"], page["yc"], page["width"], page["height"]
+    for p in pages:
+        l, t, r, b = (
+            cxywh_norm_to_ltrb_rotated(
+                p["xc"], p["yc"], p["width"], p["height"], p["angle"]
+            )
         )
-        page["left"], page["top"], page["right"], page["bottom"] = (
-            left,
-            top,
-            right,
-            bottom,
-        )
-
+        p["left"], p["top"], p["right"], p["bottom"] = l, t, r, b
     return pages
 
 

@@ -78,9 +78,16 @@ async def me(
     "",
     dependencies=[Depends(require_role(Role.admin))],
 )
-async def get_all_users(request: Request, db=Depends(get_db)):
-    """List all users. Admin only."""
-    users = await db.users.find().to_list()
+async def get_all_users(
+    request: Request, group_id: str | None = None, db=Depends(get_db)
+):
+    """List all users, can be filtered by group ID. Admin only."""
+    if group_id:
+        users = await db.users.find(
+            {"permissions.group_id": ObjectId(group_id)}
+        ).to_list()
+    else:
+        users = await db.users.find().to_list()
     return jsonable_encoder(users, exclude=["password"], custom_encoder={ObjectId: str})
 
 

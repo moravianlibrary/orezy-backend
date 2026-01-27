@@ -12,13 +12,13 @@ async def db_link_titles_to_group_bulk(
     """Link multiple titles to a group."""
     await db.titles.update_many(
         {"_id": {"$in": title_ids}},
-        {"$set": {"group_id": str(group_id)}},
+        {"$set": {"group_id": group_id}},
     )
     await db.groups.update_one(
         {"_id": group_id},
         {
             "$addToSet": {
-                "title_ids": {"$each": [str(title_id) for title_id in title_ids]}
+                "title_ids": {"$each": title_ids}
             }
         },
     )
@@ -27,25 +27,8 @@ async def db_link_titles_to_group_bulk(
     return {"title_ids": title_ids, "group_id": group_id}
 
 
-async def db_unlink_titles_from_group(
-    title_ids: list[ObjectId], group_id: ObjectId, db
-):
-    """Unlink multiple titles from a group."""
-    await db.titles.update_many(
-        {"_id": {"$in": title_ids}},
-        {"$pull": {"group_ids": str(group_id)}},
-    )
-    await db.groups.update_one(
-        {"_id": group_id},
-        {"$pull": {"title_ids": {"$in": [str(title_id) for title_id in title_ids]}}},
-    )
-
-    logger.debug(f"Unlinked titles {title_ids} from group {group_id}")
-    return {"title_ids": title_ids, "group_id": group_id}
-
-
 async def add_users_to_group_bulk(
-    group_id: str, user_ids: list[ObjectId], permission: Permission, db
+    group_id: ObjectId, user_ids: list[ObjectId], permission: Permission, db
 ):
     """Add multiple users to a group with specified permission."""
     new_permission = Maintains(group_id=group_id, permission=permission).model_dump()
@@ -61,18 +44,13 @@ async def add_users_to_group_bulk(
 
 
 async def remove_users_from_group_bulk(
-    group_id: str, user_ids: list[ObjectId], permission: Permission, db
+    group_id: ObjectId, user_ids: list[ObjectId], db
 ):
-    """Remove multiple users from a group with specified permission."""
-    permission_to_remove = Maintains(
-        group_id=group_id, permission=permission
-    ).model_dump()
+    """Remove multiple users from a group."""
     result = await db.users.update_many(
         {"_id": {"$in": user_ids}},
-        {"$pull": {"permissions": permission_to_remove}},
+        {"$pull": {"permissions": {"group_id": group_id}}},
     )
 
-    logger.debug(
-        f"Removed {result.modified_count} users from group {group_id} with permission {permission}"
-    )
+    logger.debug(f"Removed {result.modified_count} users from group {group_id}")
     return {"group_id": group_id, "removed_count": result.modified_count}

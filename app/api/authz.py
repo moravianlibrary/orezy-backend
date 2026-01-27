@@ -56,8 +56,8 @@ class GroupGuard:
         )
 
 
-# Group id providers:
 async def from_title_id(title_id: str, db=Depends(get_db)):
+    """Group id provider: Fetch group ID from title ID."""
     title = await db.titles.find_one({"_id": ObjectId(title_id)})
     if not title:
         raise HTTPException(404, "Title not found")
@@ -65,6 +65,7 @@ async def from_title_id(title_id: str, db=Depends(get_db)):
 
 
 async def from_group_id(group_id: str):
+    """Group id provider: Pass through group ID."""
     return group_id
 
 
@@ -72,25 +73,38 @@ def require_group_permission(
     required_permission: Permission,
     group_id_provider,
 ):
+    """Dependency to check if user belongs to a group and has sufficient permissions.
+    Args:
+        required_permission (Permission): The required permission level.
+        group_id_provider: A dependency that provides the group ID.
+
+    Returns:
+        A dependency that raises HTTPException if the user lacks permission.
+    """
     guard = GroupGuard(required_permission)
 
     async def dep(
         group_id: str = Depends(group_id_provider),
         user: User = Depends(get_current_user),
     ) -> User:
-        # call your original guard logic with the resolved group_id
         return guard(group_id=group_id, user=user)
 
     return dep
 
 
 def require_role(required_role: Role):
+    """Dependency to check if user has the required role.
+    Args:
+        required_role (Role): The required role (e.g., Role.admin).
+
+    Returns:
+        A dependency that raises HTTPException if the user lacks the required role.
+    """
     guard = RoleGuard(required_role)
 
     async def dep(
         user: User = Depends(get_current_user),
     ) -> User:
-        # call your original guard logic
         return guard(user=user)
 
     return dep
