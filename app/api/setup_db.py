@@ -50,14 +50,13 @@ def get_db():
 
 async def create_default_group(db):
     """Create a default group if none exists."""
-    existing_group = await db.groups.find_one({"short_name": "DEF"})
+    existing_group = await db.groups.find_one({"name": "NDK"})
     if existing_group:
         return
 
     group = Group(
-        short_name="DEF",
-        full_name="Default Group",
-        description="Default group for new titles and users.",
+        name="NDK",
+        description="Knihy z NDK linky",
     ).model_dump(by_alias=True)
     await db.groups.insert_one(group)
 
@@ -80,7 +79,7 @@ async def create_indexes(db):
         partialFilterExpression={"external_id": {"$type": "string"}},
     )
     await db.groups.create_index(
-        [("short_name", 1)], unique=True, name="unique_group_short_name"
+        [("name", 1)], unique=True, name="unique_group_name"
     )
     await db.users.create_index([("email", 1)], unique=True, name="unique_user_email")
     await db.users.create_index([("role", 1)], name="role_index")

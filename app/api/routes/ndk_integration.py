@@ -38,7 +38,7 @@ async def create_title(title_data: TitleCreate, db=Depends(get_db)):
         await db.titles.insert_one(doc)
 
         # Assign to the default group
-        default_group = await db.groups.find_one({"short_name": "DEF"})
+        default_group = await db.groups.find_one({"name": "NDK"})
         await db_link_titles_to_group_bulk(
             title_ids=[doc["_id"]], group_id=default_group["_id"], db=db
         )
