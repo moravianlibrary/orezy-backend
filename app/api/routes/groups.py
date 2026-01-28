@@ -8,6 +8,7 @@ from fastapi.encoders import jsonable_encoder
 from app.api.limiter import limiter
 from app.api.setup_db import get_db
 from app.api.authz import from_group_id, require_group_permission, require_role
+from app.db.operations.api import get_user_permissions_in_group, get_users_in_group
 from app.db.schemas.group import Group, GroupCreate, GroupUpdate
 from app.db.schemas.user import Maintains, Permission, Role, User
 from app.api.authn import (
@@ -19,7 +20,7 @@ router = APIRouter(prefix="/groups", tags=["groups"])
 
 
 @limiter.limit("60/minute;600/hour")
-@router.get("/")
+@router.get("")
 async def list_groups(
     request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -30,14 +31,17 @@ async def list_groups(
     groups = await db.groups.find({"_id": {"$in": user_group_ids}}).to_list(
         length=None
     )
-    # join permission with groups
     for group in groups:
+        # join permission with groups
+        group["permission"] = await get_user_permissions_in_group(
+            current_user, ObjectId(group["_id"])
+        )
+        if group["permission"] == Permission.manage:
+            group["users"] = await get_users_in_group(ObjectId(group["_id"]), db)
+
+        # replace title_ids with title_count
         group["title_count"] = len(group["title_ids"])
         group.pop("title_ids", None)
-        for perm in current_user.permissions:
-            if group["_id"] == perm.group_id:
-                group["permission"] = perm.permission
-                break
 
     return jsonable_encoder(groups, custom_encoder={ObjectId: str})
 
@@ -78,7 +82,7 @@ async def get_title_ids(request: Request, group_id: str, db=Depends(get_db)):
 
 
 @limiter.limit("60/minute;600/hour")
-@router.post("/", dependencies=[Depends(require_role(Role.admin))])
+@router.post("", dependencies=[Depends(require_role(Role.admin))])
 async def create_group(
     request: Request,
     group: GroupCreate,

@@ -51,7 +51,7 @@ def format_page_data_list(scans: list[Scan]) -> list[dict]:
             {
                 "_id": str(scan.id),
                 "flags": flags,
-                "pages": _page_object_to_dict(pages),
+                "pages": jsonable_encoder(pages, exclude={"confidence"}),
                 "edited": edited,
             }
         )
@@ -72,23 +72,10 @@ def format_predicted(scans: list[Scan]) -> list[dict]:
             {
                 "_id": str(scan.id),
                 "flags": flags,
-                "pages": _page_object_to_dict(scan.predicted_pages),
+                "pages": jsonable_encoder(scan.predicted_pages, exclude={"confidence"}),
             }
         )
     return formatted_scans
-
-
-def _page_object_to_dict(pages: list[Page]) -> list[dict]:
-    """Formats page data from obj to dict, adding xyxy coordinates."""
-    pages = jsonable_encoder(pages, exclude={"confidence"})
-    for p in pages:
-        l, t, r, b = (
-            cxywh_norm_to_ltrb_rotated(
-                p["xc"], p["yc"], p["width"], p["height"], p["angle"]
-            )
-        )
-        p["left"], p["top"], p["right"], p["bottom"] = l, t, r, b
-    return pages
 
 
 def resize_image(file_name, max_size: tuple = (160, 160)):

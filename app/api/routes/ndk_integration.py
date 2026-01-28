@@ -10,7 +10,7 @@ from app.api.utils import (
     format_page_data_flat,
     get_wrong_predictions,
 )
-from app.db.operations.api import db_link_titles_to_group_bulk
+from app.db.operations.api import link_titles_to_group_bulk
 from app.db.schemas.title import Scan, TaskState, Title, TitleCreate
 from starlette.responses import RedirectResponse
 from pymongo.errors import DuplicateKeyError
@@ -25,11 +25,16 @@ WEBAPP_URL = os.getenv("WEBAPP_FRONTEND_URL")
 async def create_title(title_data: TitleCreate, db=Depends(get_db)):
     """Creates a new title and schedules a Hatchet workflow for it."""
     created_title = title_data.model_dump(by_alias=True)
+    group = await db.groups.find_one({"name": "NDK"})
 
     # Remove existing title with the same external_id, book is being rescanned
     title = await db.titles.find_one({"external_id": created_title.get("external_id")})
     if title and created_title.get("external_id"):
         await db.titles.delete_one({"external_id": created_title["external_id"]})
+        await db.groups.update_one(
+            {"_id": title.get("group_id")},
+            {"$pull": {"title_ids": title["_id"]}},
+        )
 
     try:
         doc = Title(**created_title).model_dump(by_alias=True)
@@ -38,9 +43,8 @@ async def create_title(title_data: TitleCreate, db=Depends(get_db)):
         await db.titles.insert_one(doc)
 
         # Assign to the default group
-        default_group = await db.groups.find_one({"name": "NDK"})
-        await db_link_titles_to_group_bulk(
-            title_ids=[doc["_id"]], group_id=default_group["_id"], db=db
+        await link_titles_to_group_bulk(
+            title_ids=[doc["_id"]], group_id=group["_id"], db=db
         )
     except DuplicateKeyError:
         raise HTTPException(400, "Title with this id already exists")

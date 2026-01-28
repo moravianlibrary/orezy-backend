@@ -36,7 +36,8 @@ async def lifespan(app):
     db = get_db()
     await create_indexes(db)
     await create_admin(db)
-    await create_default_group(db)
+    if os.getenv("NDK_DEPLOYMENT", "false").lower() in ("1", "true", "yes"):
+        await create_ndk_group(db)
 
     yield
     await client.close()
@@ -48,15 +49,15 @@ def get_db():
     return db
 
 
-async def create_default_group(db):
-    """Create a default group if none exists."""
+async def create_ndk_group(db):
+    """Create a default NDK group if none exists."""
     existing_group = await db.groups.find_one({"name": "NDK"})
     if existing_group:
         return
 
     group = Group(
         name="NDK",
-        description="Knihy z NDK linky",
+        description="Skupina pro tituly z NDK linky",
     ).model_dump(by_alias=True)
     await db.groups.insert_one(group)
 

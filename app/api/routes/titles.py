@@ -14,7 +14,7 @@ from app.api.utils import (
     resize_image,
     sniff_media_type,
 )
-from app.db.operations.api import db_link_titles_to_group_bulk
+from app.db.operations.api import link_titles_to_group_bulk
 from app.db.schemas.title import (
     Scan,
     ScanUpdate,
@@ -70,7 +70,7 @@ async def create_title(
             os.path.join(UPLOAD_VOLUME_PATH, str(result.inserted_id)), exist_ok=True
         )
         # Link title to group
-        await db_link_titles_to_group_bulk(
+        await link_titles_to_group_bulk(
             title_ids=[result.inserted_id], group_id=ObjectId(group_id), db=db
         )
     except Exception as e:
@@ -474,31 +474,3 @@ async def reset_predictions(
         raise HTTPException(404, f"Title with id {title_id} not found")
 
     return await get_scans(title_id, db)
-
-
-@limiter.limit("2000/minute")
-@router.get(
-    "{group_id}/titles",
-    dependencies=[
-        Depends(
-            require_group_permission(Permission.read, group_id_provider=from_group_id)
-        )
-    ],
-)
-async def get_title_ids(request: Request, group_id: str, db=Depends(get_db)):
-    """Gets all title IDs from the database.
-
-    Returns:
-        dict: Titles containing their IDs, states, creation and modification dates.
-    """
-    if not ObjectId.is_valid(group_id):
-        raise HTTPException(400, f"ID '{group_id}' is not a valid ObjectId")
-
-    titles = await db.titles.find(
-        {"group_id": ObjectId(group_id)},
-        {"_id": 1, "state": 1, "created_at": 1, "modified_at": 1},
-    ).to_list(None)
-
-    # Show most recently created titles first
-    titles = sorted(titles, key=lambda x: x["created_at"], reverse=True)
-    return jsonable_encoder(titles, custom_encoder={ObjectId: str})

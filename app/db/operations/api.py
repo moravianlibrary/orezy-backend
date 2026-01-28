@@ -1,12 +1,14 @@
+from datetime import datetime
 import logging
 from bson import ObjectId
+from fastapi.encoders import jsonable_encoder
 
-from app.db.schemas.user import Maintains, Permission
+from app.db.schemas.user import Maintains, Permission, User
 
 logger = logging.getLogger(__name__)
 
 
-async def db_link_titles_to_group_bulk(
+async def link_titles_to_group_bulk(
     title_ids: list[ObjectId], group_id: ObjectId, db
 ):
     """Link multiple titles to a group."""
@@ -19,7 +21,8 @@ async def db_link_titles_to_group_bulk(
         {
             "$addToSet": {
                 "title_ids": {"$each": title_ids}
-            }
+            },
+            "$set": {"modified_at": datetime.now()}
         },
     )
 
@@ -54,3 +57,22 @@ async def remove_users_from_group_bulk(
 
     logger.debug(f"Removed {result.modified_count} users from group {group_id}")
     return {"group_id": group_id, "removed_count": result.modified_count}
+
+async def get_users_in_group(group_id: ObjectId, db):
+    """Get all users in a specific group."""
+    users = await db.users.find(
+        {"permissions.group_id": group_id},
+    ).to_list(length=None)
+    
+    for user in users:
+        user["permission"] = await get_user_permissions_in_group(User(**user), group_id)
+
+    return jsonable_encoder(users, custom_encoder={ObjectId: str}, include=["_id", "full_name", "permission"])
+
+
+async def get_user_permissions_in_group(current_user: User, group_id: ObjectId):
+    """Get the permissions of the current user in a specific group."""
+    for perm in current_user.permissions:
+        if perm.group_id == group_id:
+            return perm.permission
+    return None

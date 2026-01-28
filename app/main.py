@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from app.api.routes import groups, ndk_integration, titles, users
 from app.api.setup_db import lifespan
@@ -19,7 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 app = FastAPI(title="PageTrace API", lifespan=lifespan)
-app.include_router(ndk_integration.router)
+if os.getenv("NDK_DEPLOYMENT", "false").lower() in ("1", "true", "yes"):
+    app.include_router(ndk_integration.router)
 app.include_router(titles.router)
 app.include_router(users.router)
 app.include_router(groups.router)
