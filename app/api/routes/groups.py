@@ -107,11 +107,11 @@ async def create_group(
 
 @limiter.limit("60/minute;600/hour")
 @router.patch("/{group_id}/add", dependencies=[Depends(require_role(Role.admin))])
-async def add_group_members(
+async def add_group_member(
     request: Request,
     group_id: str,
-    user_ids: list[str],
-    permissions: list[Permission],
+    user_id: str,
+    permission: Permission,
     db=Depends(get_db),
 ):
     """Updates group members and their permissions."""
@@ -120,22 +120,22 @@ async def add_group_members(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Group not found"
         )
-    for user_id, permission in zip(user_ids, permissions):
-        new_permission = Maintains(group_id=group_id, permission=permission).model_dump()
-        await db.users.update_one(
-            {"_id": ObjectId(user_id)},
-            {"$push": {"permissions": new_permission}},
-        )
+    
+    new_permission = Maintains(group_id=group_id, permission=permission).model_dump()
+    await db.users.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$push": {"permissions": new_permission}},
+    )
 
-    return {"detail": "Group members updated"}
+    return {"detail": "Group member updated"}
 
 
 @limiter.limit("60/minute;600/hour")
 @router.patch("/{group_id}/remove", dependencies=[Depends(require_role(Role.admin))])
-async def remove_group_members(
+async def remove_group_member(
     request: Request,
     group_id: str,
-    user_ids: list[str],
+    user_id: str,
     db=Depends(get_db),
 ):
     group = await db.groups.find_one({"_id": ObjectId(group_id)})
@@ -147,18 +147,18 @@ async def remove_group_members(
     # Prevent removing admin users
     admin_user_ids = await db.users.find({"role": Role.admin.value}).to_list(length=None)
     admin_user_ids = [user["_id"] for user in admin_user_ids]
-    if any(ObjectId(uid) in admin_user_ids for uid in user_ids):
+    if ObjectId(user_id) in admin_user_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot remove admin users from group",
         )
 
-    await db.users.update_many(
-        {"_id": {"$in": list(map(ObjectId, user_ids))}},
+    await db.users.update_one(
+        {"_id": ObjectId(user_id)},
         {"$pull": {"permissions": {"group_id": ObjectId(group_id)}}},
     )
 
-    return {"detail": "Group members removed"}
+    return {"detail": "Group member removed"}
 
 @limiter.limit("60/minute;600/hour")
 @router.patch("/{group_id}", dependencies=[Depends(require_role(Role.admin))])

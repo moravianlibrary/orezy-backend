@@ -73,12 +73,6 @@ async def create_ndk_group(db):
 
 async def create_indexes(db):
     """Create necessary indexes in the database."""
-    await db.titles.create_index(
-        [("external_id", 1)],
-        unique=True,
-        name="unique_external_id",
-        partialFilterExpression={"external_id": {"$type": "string"}},
-    )
     await db.groups.create_index(
         [("name", 1)], unique=True, name="unique_group_name"
     )

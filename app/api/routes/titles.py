@@ -28,7 +28,7 @@ from app.tasks.workflows.smartcrop_workflow import autocrop_workflow
 
 UPLOAD_VOLUME_PATH = os.getenv("SCANS_VOLUME_PATH")
 RETRAIN_VOLUME_PATH = os.getenv("RETRAIN_VOLUME_PATH")
-router = APIRouter(prefix="", tags=["webapp"])
+router = APIRouter(prefix="", tags=["books"])
 
 
 @limiter.limit("60/minute;600/hour")
@@ -191,7 +191,6 @@ async def get_title_state(title_id: str, db=Depends(get_db)):
     return title.get("state")
 
 
-@limiter.limit("2000/minute")
 @router.get(
     "/{title_id}/scans",
     dependencies=[
@@ -201,7 +200,7 @@ async def get_title_state(title_id: str, db=Depends(get_db)):
     ],
 )
 async def get_scans(
-    request: Request, title_id: str, scan_id: str | None = None, db=Depends(get_db)
+    title_id: str, scan_id: str | None = None, db=Depends(get_db)
 ):
     """Gets crop instructions for all pages, can be filtered to get specific scan page by ID.
 
@@ -374,7 +373,7 @@ async def update_pages(
             pages[1]["type"] = "right"
 
         result = await db.titles.update_one(
-            {"_id": ObjectId(id), "scans._id": scan.id},
+            {"_id": ObjectId(title_id), "scans._id": scan.id},
             {
                 "$set": {
                     "scans.$.user_edited_pages": pages,
@@ -473,4 +472,4 @@ async def reset_predictions(
     if result.matched_count == 0:
         raise HTTPException(404, f"Title with id {title_id} not found")
 
-    return await get_scans(title_id, db)
+    return await get_scans(title_id, None, db)
