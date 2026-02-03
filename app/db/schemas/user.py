@@ -1,6 +1,8 @@
 from datetime import datetime
 from enum import Enum
 import re
+import secrets
+import string
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -31,7 +33,7 @@ class User(BaseModelWithId):
     full_name: str
     role: Role = Role.user
     permissions: list[Maintains] = Field(default_factory=list)
-    password: str = ""
+    password: str = Field(default_factory=lambda: User.create_random_password())
 
     @field_validator("email")
     def validate_email(cls, v: str) -> str:
@@ -39,6 +41,18 @@ class User(BaseModelWithId):
         if not re.match(pattern, v or ""):
             raise ValueError("Invalid email address")
         return v.lower()
+    
+    @staticmethod
+    def create_random_password(length: int = 16) -> str:
+        """Generate a secure random password.
+
+        Args:
+            length (int): Length of the generated password. Default is 16.
+        Returns:
+            str: The generated password.
+        """
+        alphabet = string.ascii_letters + string.digits + string.punctuation
+        return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
 class UserCreate(BaseModel):

@@ -1,22 +1,13 @@
 import os
 from fastapi import FastAPI
-from app.api.routes import groups, ndk_integration, titles, users
+from app.api.routes import auth, groups, ndk_integration, titles, users
 from app.api.setup_db import lifespan
 from fastapi.openapi.utils import get_openapi
 from app.db.schemas.title import TaskState
 from fastapi.middleware.cors import CORSMiddleware
+from app.logs import setup_logging
 
-import logging
-
-# Configure basic logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-
-# Create a logger instance
-logger = logging.getLogger(__name__)
+setup_logging()
 
 
 app = FastAPI(title="PageTrace API", lifespan=lifespan)
@@ -25,6 +16,7 @@ if os.getenv("NDK_DEPLOYMENT", "false").lower() in ("1", "true", "yes"):
 app.include_router(titles.router)
 app.include_router(users.router)
 app.include_router(groups.router)
+app.include_router(auth.router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,7 +32,7 @@ def custom_openapi():
         return app.openapi_schema
     openapi_schema = get_openapi(
         title="SmartCrop API",
-        version="1.0.0",
+        version="1.0.1",
         routes=app.routes,
     )
     # Add a custom schema

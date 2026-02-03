@@ -1,4 +1,5 @@
 from datetime import datetime
+import logging
 import os
 from urllib.parse import urljoin
 from fastapi import APIRouter, Depends, HTTPException
@@ -16,7 +17,8 @@ from starlette.responses import RedirectResponse
 from pymongo.errors import DuplicateKeyError
 from app.tasks.workflows.smartcrop_workflow import autocrop_workflow
 
-router = APIRouter(prefix="/ndk", tags=["ndk"], dependencies=[Depends(require_token)])
+router = APIRouter(prefix="/ndk", tags=["NDK"], dependencies=[Depends(require_token)])
+logger = logging.getLogger(__name__)
 
 WEBAPP_URL = os.getenv("WEBAPP_FRONTEND_URL")
 
@@ -55,6 +57,9 @@ async def create_title(title_data: TitleCreate, db=Depends(get_db)):
     try:
         await autocrop_workflow.aio_run_no_wait(input=Title(**doc))
     except grpc.RpcError:
+        logger.warning(
+            f"gRPC timeout when scheduling workflow for title {doc['external_id']}"
+        )
         pass  # ignore gRPC timeout, the task will be created anyway
 
     await db.titles.update_one(
@@ -62,6 +67,7 @@ async def create_title(title_data: TitleCreate, db=Depends(get_db)):
         {"$set": {"state": TaskState.scheduled}},
     )
 
+    logger.info(f"Scheduled workflow for title {doc['external_id']} (id: {doc['_id']})")
     return {"state": TaskState.scheduled, "id": doc["external_id"]}
 
 

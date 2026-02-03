@@ -1,5 +1,5 @@
 import certifi
-from fastapi.security import HTTPBearer, OAuth2PasswordBearer
+from fastapi.security import APIKeyHeader, HTTPBearer, OAuth2PasswordBearer
 from app.db.operations.api import add_users_to_group_bulk
 from app.db.schemas.group import Group
 from app.db.schemas.user import Maintains, Permission, User
@@ -12,11 +12,14 @@ from app.deps import settings_db
 from app.db.schemas.user import Role
 
 
-
 client: AsyncMongoClient | None = None
-bearer = HTTPBearer(auto_error=False) # for static token auth of NDK endpoints
+bearer = HTTPBearer(auto_error=False)
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 password_hash = PasswordHash.recommended()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login") # for user auth via JWT tokens
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="/auth/login",
+    auto_error=False
+)  # for user auth via JWT tokens
 
 
 @asynccontextmanager
@@ -73,9 +76,7 @@ async def create_ndk_group(db):
 
 async def create_indexes(db):
     """Create necessary indexes in the database."""
-    await db.groups.create_index(
-        [("name", 1)], unique=True, name="unique_group_name"
-    )
+    await db.groups.create_index([("name", 1)], unique=True, name="unique_group_name")
     await db.users.create_index([("email", 1)], unique=True, name="unique_user_email")
     await db.users.create_index([("role", 1)], name="role_index")
 

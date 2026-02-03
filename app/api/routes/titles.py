@@ -28,7 +28,7 @@ from app.tasks.workflows.smartcrop_workflow import autocrop_workflow
 
 UPLOAD_VOLUME_PATH = os.getenv("SCANS_VOLUME_PATH")
 RETRAIN_VOLUME_PATH = os.getenv("RETRAIN_VOLUME_PATH")
-router = APIRouter(prefix="", tags=["books"])
+router = APIRouter(prefix="", tags=["Books"])
 
 
 @limiter.limit("60/minute;600/hour")
@@ -199,9 +199,7 @@ async def get_title_state(title_id: str, db=Depends(get_db)):
         )
     ],
 )
-async def get_scans(
-    title_id: str, scan_id: str | None = None, db=Depends(get_db)
-):
+async def get_scans(title_id: str, scan_id: str | None = None, db=Depends(get_db)):
     """Gets crop instructions for all pages, can be filtered to get specific scan page by ID.
 
     Returns:
@@ -223,7 +221,9 @@ async def get_scans(
     scans = [Scan(**scan) for scan in title.get("scans", [])]
     scans = sorted(scans, key=lambda s: s.filename)
     title["scans"] = format_page_data_list(scans)
-    title = jsonable_encoder(title, custom_encoder={ObjectId: str}, exclude=["filelist", "external_id"])
+    title = jsonable_encoder(
+        title, custom_encoder={ObjectId: str}, exclude=["filelist", "external_id"]
+    )
 
     return title
 
@@ -253,7 +253,9 @@ async def get_predicted_pages(request: Request, title_id: str, db=Depends(get_db
     scans = [Scan(**scan) for scan in title.get("scans", [])]
     scans = sorted(scans, key=lambda s: s.filename)
     title["scans"] = format_predicted(scans)
-    title = jsonable_encoder(title, custom_encoder={ObjectId: str}, exclude=["filelist", "external_id"])
+    title = jsonable_encoder(
+        title, custom_encoder={ObjectId: str}, exclude=["filelist", "external_id"]
+    )
     return title
 
 
