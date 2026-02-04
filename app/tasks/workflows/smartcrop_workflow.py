@@ -6,8 +6,13 @@ import logging
 import certifi
 from pymongo import MongoClient
 from app.core.rotate_net.rotate_model import rotate_pages
-from app.db.operations import db_get_state, db_update_task_state, db_add_scans_bulk
-from app.db.schemas import TaskState, Title, WorkflowOutput
+from app.db.operations.hatchet import (
+    db_get_state,
+    db_update_task_state,
+    db_add_scans_bulk,
+)
+from app.db.schemas.title import TaskState, Title
+from app.db.schemas.workflow import WorkflowOutput
 from app.core.anomalies import (
     flag_dimensions_anomalies,
     flag_low_confidence,
@@ -17,7 +22,7 @@ from app.core.anomalies import (
 )
 from app.core.yolo_crop.crop_model import crop_images_inner, crop_images_outer
 from app.tasks.hatchet_client import hatchet
-from app.api.deps import settings
+from app.deps import settings_db
 
 from hatchet_sdk import (
     Context,
@@ -31,11 +36,11 @@ _db = None
 def _ensure_db():
     global _client, _db
     if _db is None:
-        if settings.tls_enabled:
-            _client = MongoClient(settings.mongodb_uri, tlsCAFile=certifi.where())
+        if settings_db.tls_enabled:
+            _client = MongoClient(settings_db.mongodb_uri, tlsCAFile=certifi.where())
         else:
-            _client = MongoClient(settings.mongodb_uri)
-        _db = _client.get_database(settings.mongodb_db)
+            _client = MongoClient(settings_db.mongodb_uri)
+        _db = _client.get_database(settings_db.mongodb_db)
     return _db
 
 

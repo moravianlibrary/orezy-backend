@@ -1,8 +1,7 @@
 from io import BytesIO
 import os
 from fastapi.encoders import jsonable_encoder
-from app.core.utils import cxywh_norm_to_xyxy
-from app.db.schemas import Page, Scan
+from app.db.schemas.title import Scan
 from PIL import Image
 
 
@@ -14,7 +13,9 @@ def format_page_data_flat(scans: list[Scan]) -> list[dict]:
     formatted_pages = []
     for scan in sorted(scans, key=lambda s: s.filename):
         pages = (
-            scan.user_edited_pages if scan.user_edited_pages is not None else scan.predicted_pages
+            scan.user_edited_pages
+            if scan.user_edited_pages is not None
+            else scan.predicted_pages
         )
         for page in pages:
             formatted_pages.append(
@@ -49,7 +50,7 @@ def format_page_data_list(scans: list[Scan]) -> list[dict]:
             {
                 "_id": str(scan.id),
                 "flags": flags,
-                "pages": _page_object_to_dict(pages),
+                "pages": jsonable_encoder(pages, exclude={"confidence"}),
                 "edited": edited,
             }
         )
@@ -70,27 +71,10 @@ def format_predicted(scans: list[Scan]) -> list[dict]:
             {
                 "_id": str(scan.id),
                 "flags": flags,
-                "pages": _page_object_to_dict(scan.predicted_pages),
+                "pages": jsonable_encoder(scan.predicted_pages, exclude={"confidence"}),
             }
         )
     return formatted_scans
-
-
-def _page_object_to_dict(pages: list[Page]) -> list[dict]:
-    """Formats page data from obj to dict, adding xyxy coordinates."""
-    pages = jsonable_encoder(pages, exclude={"confidence"})
-    for page in pages:
-        left, top, right, bottom = cxywh_norm_to_xyxy(
-            page["xc"], page["yc"], page["width"], page["height"]
-        )
-        page["left"], page["top"], page["right"], page["bottom"] = (
-            left,
-            top,
-            right,
-            bottom,
-        )
-
-    return pages
 
 
 def resize_image(file_name, max_size: tuple = (160, 160)):
@@ -137,9 +121,10 @@ def copy_images_for_retraining(id, filelist: list[str]) -> list[str]:
 
     return retrain_filelist
 
+
 def sniff_media_type(sig: bytes) -> str:
     """Sniffs the media type of a file based on its signature.
-    
+
     Args:
         signature (bytes): File signature bytes.
     Returns:

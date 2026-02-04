@@ -6,7 +6,7 @@ import requests
 import time
 
 from app.core.utils import denormalize_bbox
-from app.db.schemas import TaskState
+from app.db.schemas.title import TaskState
 
 
 def show_results(results):

@@ -1,39 +1,53 @@
 from datetime import datetime
+import logging
 import os
 from urllib.parse import urljoin
 from fastapi import APIRouter, Depends, HTTPException
 import grpc
-from app.api.deps import get_db, require_token
+from app.api.setup_db import get_db
+from app.api.authn import require_token
 from app.api.utils import (
     copy_images_for_retraining,
     format_page_data_flat,
     get_wrong_predictions,
 )
-from app.db.schemas import Scan, TaskState, Title, TitleCreate
+from app.db.operations.api import link_titles_to_group_bulk
+from app.db.schemas.title import Scan, TaskState, Title, TitleCreate
 from starlette.responses import RedirectResponse
 from pymongo.errors import DuplicateKeyError
 from app.tasks.workflows.smartcrop_workflow import autocrop_workflow
 
-router = APIRouter(prefix="/ndk", tags=["ndk"], dependencies=[Depends(require_token)])
+router = APIRouter(prefix="/ndk", tags=["NDK"], dependencies=[Depends(require_token)])
+logger = logging.getLogger(__name__)
 
-WEBAPP_URL = os.getenv("WEBAPP_FRONTEND_URL", "https://example.com")
+WEBAPP_URL = os.getenv("WEBAPP_FRONTEND_URL")
 
 
 @router.post("/create")
 async def create_title(title_data: TitleCreate, db=Depends(get_db)):
     """Creates a new title and schedules a Hatchet workflow for it."""
     created_title = title_data.model_dump(by_alias=True)
+    group = await db.groups.find_one({"name": "NDK"})
 
     # Remove existing title with the same external_id, book is being rescanned
     title = await db.titles.find_one({"external_id": created_title.get("external_id")})
     if title and created_title.get("external_id"):
         await db.titles.delete_one({"external_id": created_title["external_id"]})
+        await db.groups.update_one(
+            {"_id": title.get("group_id")},
+            {"$pull": {"title_ids": title["_id"]}},
+        )
 
     try:
         doc = Title(**created_title).model_dump(by_alias=True)
         if doc["external_id"] is None:
             doc["external_id"] = str(doc["_id"])
         await db.titles.insert_one(doc)
+
+        # Assign to the default group
+        await link_titles_to_group_bulk(
+            title_ids=[doc["_id"]], group_id=group["_id"], db=db
+        )
     except DuplicateKeyError:
         raise HTTPException(400, "Title with this id already exists")
     except Exception as e:
@@ -43,6 +57,9 @@ async def create_title(title_data: TitleCreate, db=Depends(get_db)):
     try:
         await autocrop_workflow.aio_run_no_wait(input=Title(**doc))
     except grpc.RpcError:
+        logger.warning(
+            f"gRPC timeout when scheduling workflow for title {doc['external_id']}"
+        )
         pass  # ignore gRPC timeout, the task will be created anyway
 
     await db.titles.update_one(
@@ -50,6 +67,7 @@ async def create_title(title_data: TitleCreate, db=Depends(get_db)):
         {"$set": {"state": TaskState.scheduled}},
     )
 
+    logger.info(f"Scheduled workflow for title {doc['external_id']} (id: {doc['_id']})")
     return {"state": TaskState.scheduled, "id": doc["external_id"]}
 
 

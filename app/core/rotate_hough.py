@@ -5,7 +5,7 @@ import logging
 import math
 
 from app.core.utils import cxywh_to_xyxy, denormalize_bbox
-from app.db.schemas import Scan
+from app.db.schemas.title import Scan
 
 logger = logging.getLogger(__name__)
 

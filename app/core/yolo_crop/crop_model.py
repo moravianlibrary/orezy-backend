@@ -2,7 +2,7 @@ import logging
 import cv2
 from ultralytics import YOLO
 
-from app.db.schemas import Page, Scan
+from app.db.schemas.title import Page, Scan
 from app.core.utils import (
     add_margin,
     assign_page_type,

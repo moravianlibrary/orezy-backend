@@ -1,4 +1,4 @@
-# Hatchet UI login
+# Hatchet UI / API login
 ADMIN_EMAIL=autocrop-developer@example.com
 ADMIN_PASSWORD=Iu1508E!JPfxbq2iP
-ADMIN_NAME=Developer
+ADMIN_NAME=Admin

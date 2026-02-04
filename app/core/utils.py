@@ -2,7 +2,7 @@ import logging
 import numpy as np
 import cv2
 
-from app.db.schemas import Scan
+from app.db.schemas.title import Scan
 
 
 logger = logging.getLogger(__name__)
@@ -38,6 +38,18 @@ def cxywh_norm_to_xyxy(
     x2 = xc + w / 2
     y2 = yc + h / 2
     return round(x1, 4), round(y1, 4), round(x2, 4), round(y2, 4)
+
+
+def cxywh_norm_to_ltrb_rotated(
+    xc: float, yc: float, w: float, h: float, angle: float
+) -> tuple[float, float, float, float]:
+    """Converts bounding box from center x, center y, width, height to rotated box points."""
+    rect = ((xc, yc), (w, h), angle)
+    box = cv2.boxPoints(rect)  # float32
+    top, bottom = box[:, 1].min(), box[:, 1].max()
+    left, right = box[:, 0].min(), box[:, 0].max()
+
+    return float(left), float(top), float(right), float(bottom)
 
 
 def bbox_union(boxes: np.ndarray) -> np.ndarray:

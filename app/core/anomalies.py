@@ -1,6 +1,6 @@
 import numpy as np
 from app.core.utils import bbox_intersection, cxywh_to_xyxy
-from app.db.schemas import Anomaly, Page, Scan
+from app.db.schemas.title import Anomaly, Page, Scan
 
 
 def flag_missing_pages(scans: list[Scan]) -> list[Scan]:

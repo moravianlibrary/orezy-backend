@@ -1,40 +1,13 @@
-from bson import ObjectId
 from pydantic import (
-    AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
-    PlainSerializer,
-    WithJsonSchema,
     model_validator,
 )
 from datetime import datetime
-from typing import Annotated, Union
 from enum import Enum
 
-
-def validate_object_id(value: Union[str, ObjectId]) -> ObjectId:
-    if isinstance(value, ObjectId):
-        return value
-
-    if ObjectId.is_valid(value):
-        return ObjectId(value)
-
-    raise ValueError("Invalid ObjectId {value}")
-
-
-ObjectIdField = Annotated[
-    Union[str, ObjectId],
-    AfterValidator(validate_object_id),
-    PlainSerializer(lambda x: str(x), return_type=str, when_used="json"),
-    WithJsonSchema({"type": "string"}, mode="serialization"),
-]
-
-
-class BaseModelWithId(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    id: ObjectIdField = Field(default_factory=ObjectId, alias="_id")
+from app.db.schemas.base import BaseModelWithId, ObjectIdField
 
 
 class Anomaly(str, Enum):
@@ -69,15 +42,18 @@ class Page(BaseModelWithId):
     confidence: float = 0
     angle: float = 0
     type: str | None = None
-    flags: list[str] = Field(default_factory=list)
+    flags: list[Anomaly] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def round_values(cls, values):
-        """Round all numeric fields to 3 decimals."""
-        for field in ("xc", "yc", "width", "height", "confidence", "angle"):
+        """Round all numeric fields to 2 decimals in unnormalized form."""
+        for field in ("xc", "yc", "width", "height", "confidence"):
             val = getattr(values, field, None)
             if isinstance(val, (int, float)):
                 setattr(values, field, round(val, 4))
+
+        angle = getattr(values, "angle", 0)
+        setattr(values, "angle", round(angle, 2))
         return values
 
 
@@ -91,12 +67,9 @@ class ScanUpdate(BaseModelWithId):
     pages: list[Page]
 
 
-class WorkflowOutput(BaseModel):
-    results: list[Scan]
-    title_id: str | None = None
-
-
 class TitleCreate(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     external_id: str | None = None
     filelist: list[str] = Field(default_factory=list)
     crop_method: CropMethod = Field(default=CropMethod.inner)
@@ -118,8 +91,11 @@ class Title(BaseModelWithId):
     crop_method: CropMethod
     created_at: datetime = Field(default_factory=datetime.now)
     modified_at: datetime = Field(default_factory=datetime.now)
+    modified_by: str | None = None
     state: TaskState = Field(default=TaskState.new)
     scans: list[Scan] = Field(default_factory=list)
+
+    group_id: ObjectIdField | None = None
 
     crop_type_code: str | None = None
     double_page: bool = False
