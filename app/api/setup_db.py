@@ -92,7 +92,7 @@ async def create_admin(db):
     group_ids = await db.groups.distinct("_id")
     permissions = []
     for group_id in group_ids:
-        permissions.append(Maintains(group_id=group_id, permission=Permission.manage))
+        permissions.append(Maintains(group_id=group_id, permission=list(Permission)))
 
     user = User(
         full_name=os.getenv("ADMIN_NAME"),

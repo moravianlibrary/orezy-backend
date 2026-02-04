@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
     "/create",
     dependencies=[
         Depends(
-            require_group_permission(Permission.manage, group_id_provider=from_group_id)
+            require_group_permission(Permission.upload, group_id_provider=from_group_id)
         )
     ],
 )
@@ -88,7 +88,7 @@ async def create_title(
     "/{title_id}/upload-scan",
     dependencies=[
         Depends(
-            require_group_permission(Permission.manage, group_id_provider=from_title_id)
+            require_group_permission(Permission.upload, group_id_provider=from_title_id)
         )
     ],
 )
@@ -137,7 +137,7 @@ async def upload_scan(
     "/{title_id}/process",
     dependencies=[
         Depends(
-            require_group_permission(Permission.manage, group_id_provider=from_title_id)
+            require_group_permission(Permission.upload, group_id_provider=from_title_id)
         )
     ],
 )
@@ -178,7 +178,7 @@ async def process_title(request: Request, title_id: str, db=Depends(get_db)):
     "/{title_id}/status",
     dependencies=[
         Depends(
-            require_group_permission(Permission.read, group_id_provider=from_title_id)
+            require_group_permission(Permission.read_title, group_id_provider=from_title_id)
         )
     ],
 )
@@ -202,7 +202,7 @@ async def get_title_state(title_id: str, db=Depends(get_db)):
     "/{title_id}/scans",
     dependencies=[
         Depends(
-            require_group_permission(Permission.read, group_id_provider=from_title_id)
+            require_group_permission(Permission.read_title, group_id_provider=from_title_id)
         )
     ],
 )
@@ -242,7 +242,7 @@ async def get_scans(title_id: str, scan_id: str | None = None, db=Depends(get_db
     "/{title_id}/predicted-scans",
     dependencies=[
         Depends(
-            require_group_permission(Permission.read, group_id_provider=from_title_id)
+            require_group_permission(Permission.read_title, group_id_provider=from_title_id)
         )
     ],
 )
@@ -278,7 +278,7 @@ async def get_predicted_pages(request: Request, title_id: str, db=Depends(get_db
     response_class=Response,
     dependencies=[
         Depends(
-            require_group_permission(Permission.read, group_id_provider=from_title_id)
+            require_group_permission(Permission.read_title, group_id_provider=from_title_id)
         )
     ],
 )
@@ -321,7 +321,7 @@ async def get_scanfile(
     response_class=Response,
     dependencies=[
         Depends(
-            require_group_permission(Permission.read, group_id_provider=from_title_id)
+            require_group_permission(Permission.read_title, group_id_provider=from_title_id)
         )
     ],
 )
@@ -421,7 +421,7 @@ async def update_pages(
     "/{title_id}",
     dependencies=[
         Depends(
-            require_group_permission(Permission.manage, group_id_provider=from_title_id)
+            require_group_permission(Permission.upload, group_id_provider=from_title_id)
         )
     ],
 )
@@ -466,7 +466,7 @@ async def delete_title(request: Request, title_id: str, db=Depends(get_db)):
     "/{title_id}/reset",
     dependencies=[
         Depends(
-            require_group_permission(Permission.manage, group_id_provider=from_title_id)
+            require_group_permission(Permission.write, group_id_provider=from_title_id)
         )
     ],
 )

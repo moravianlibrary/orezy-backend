@@ -15,16 +15,17 @@ class Role(str, Enum):
 
 
 class Permission(str, Enum):
-    read = "read"
+    read_group = "read_group"
+    read_title = "read_title"
     write = "write"
-    manage = "manage"
+    upload = "upload"
 
 
 class Maintains(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     group_id: ObjectIdField
-    permission: Permission
+    permission: list[Permission] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.now)
 
 
