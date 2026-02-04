@@ -41,7 +41,7 @@ class User(BaseModelWithId):
         if not re.match(pattern, v or ""):
             raise ValueError("Invalid email address")
         return v.lower()
-    
+
     @staticmethod
     def create_random_password(length: int = 16) -> str:
         """Generate a secure random password.

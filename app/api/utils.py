@@ -1,8 +1,7 @@
 from io import BytesIO
 import os
 from fastapi.encoders import jsonable_encoder
-from app.core.utils import cxywh_norm_to_ltrb_rotated
-from app.db.schemas.title import Page, Scan
+from app.db.schemas.title import Scan
 from PIL import Image
 
 

@@ -17,8 +17,7 @@ bearer = HTTPBearer(auto_error=False)
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 password_hash = PasswordHash.recommended()
 oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl="/auth/login",
-    auto_error=False
+    tokenUrl="/users/login", auto_error=False
 )  # for user auth via JWT tokens
 
 

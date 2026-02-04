@@ -4,6 +4,7 @@ import string
 from pydantic import BaseModel, ConfigDict, Field
 from app.db.schemas.base import BaseModelWithId, ObjectIdField
 
+
 class APIkey(BaseModel):
     key: str = Field(default_factory=lambda: APIkey.create_api_key())
     created_at: datetime = Field(default_factory=datetime.now)
@@ -13,6 +14,7 @@ class APIkey(BaseModel):
         alphabet = string.ascii_letters + string.digits
         secret = "".join(secrets.choice(alphabet) for _ in range(length))
         return "-".join(secret[i : i + 8] for i in range(0, len(secret), 8))
+
 
 class Group(BaseModelWithId):
     name: str

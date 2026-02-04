@@ -1,4 +1,3 @@
-
 import logging
 
 
@@ -28,6 +27,7 @@ LOGGING_CONFIG = {
         "uvicorn.access": {"level": "INFO", "propagate": True},
     },
 }
+
 
 def setup_logging():
     logging.config.dictConfig(LOGGING_CONFIG)

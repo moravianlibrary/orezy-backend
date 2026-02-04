@@ -255,8 +255,16 @@ async def delete_group(request: Request, group_id: str, db=Depends(get_db)):
 
     return {"detail": "Group deleted"}
 
+
 @limiter.limit("1/minute")
-@router.post("/{group_id}/api-key", dependencies=[Depends(require_group_permission(Permission.manage, group_id_provider=from_group_id))])
+@router.post(
+    "/{group_id}/api-key",
+    dependencies=[
+        Depends(
+            require_group_permission(Permission.manage, group_id_provider=from_group_id)
+        )
+    ],
+)
 async def revoke_group_api_key(
     request: Request,
     group_id: str,
@@ -275,6 +283,4 @@ async def revoke_group_api_key(
         {"$set": {"api_key": new_api_key.model_dump(by_alias=True)}},
     )
 
-    return jsonable_encoder(
-        new_api_key, custom_encoder={ObjectId: str}
-    )
+    return jsonable_encoder(new_api_key, custom_encoder={ObjectId: str})

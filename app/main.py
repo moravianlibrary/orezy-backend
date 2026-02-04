@@ -1,6 +1,6 @@
 import os
 from fastapi import FastAPI
-from app.api.routes import auth, groups, ndk_integration, titles, users
+from app.api.routes import groups, ndk_integration, titles, users
 from app.api.setup_db import lifespan
 from fastapi.openapi.utils import get_openapi
 from app.db.schemas.title import TaskState
@@ -16,7 +16,6 @@ if os.getenv("NDK_DEPLOYMENT", "false").lower() in ("1", "true", "yes"):
 app.include_router(titles.router)
 app.include_router(users.router)
 app.include_router(groups.router)
-app.include_router(auth.router)
 
 app.add_middleware(
     CORSMiddleware,

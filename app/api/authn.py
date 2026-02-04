@@ -7,13 +7,20 @@ from typing import Annotated, Optional
 from fastapi.security import HTTPAuthorizationCredentials
 import jwt
 from fastapi import Depends, HTTPException, Security, status
-from app.api.setup_db import get_db, password_hash, oauth2_scheme, api_key_header, bearer
+from app.api.setup_db import (
+    get_db,
+    password_hash,
+    oauth2_scheme,
+    api_key_header,
+    bearer,
+)
 from app.deps import settings_api
 from pydantic import BaseModel
 
 from app.db.schemas.user import User
 
 logger = logging.getLogger(__name__)
+
 
 class Token(BaseModel):
     access_token: str
@@ -98,7 +105,7 @@ def create_access_token(
 async def get_current_user(
     token: Annotated[str | None, Security(oauth2_scheme)],
     api_key: Annotated[str | None, Security(api_key_header)],
-    db=Depends(get_db)
+    db=Depends(get_db),
 ):
     """Retrieve the current user based on the provided JWT token.
 
@@ -110,25 +117,26 @@ async def get_current_user(
     Raises:
         HTTPException: If the token is invalid or the user cannot be found.
     """
-    logger.info(f"Authenticating user with token: {token} and api_key: {api_key}")
     try:
         # JWT token authentication, user is logged in via app
         if token:
             payload = jwt.decode(
-                token, settings_api.pwd_secret_key, algorithms=[settings_api.pwd_algorithm]
+                token,
+                settings_api.pwd_secret_key,
+                algorithms=[settings_api.pwd_algorithm],
             )
-        
+
             email = payload.get("sub")
             user = await db.users.find_one({"email": email})
         # API key authentication, group-based access for API users
         if api_key:
             group_id = await auth_via_api_key(api_key, db)
             user = {
-                    "email": "api@request.user",
-                    "full_name": "API request",
-                    "role": "user",
-                    "permissions": [{"group_id": group_id, "permission": "manage"}],
-                }
+                "email": "api@request.user",
+                "full_name": "API request",
+                "role": "user",
+                "permissions": [{"group_id": group_id, "permission": "manage"}],
+            }
         return User(**user)
     except Exception:
         raise HTTPException(
@@ -143,7 +151,7 @@ async def auth_via_api_key(
     db=Depends(get_db),
 ) -> str:
     """Authenticate using an API key and return the associated group ID.
-    
+
     Args:
         raw_key (str): The raw API key provided in the request header.
         db: Database connection.
@@ -158,10 +166,14 @@ async def auth_via_api_key(
     logger.info(f"API Key access attempt for key: {raw_key}")
     # Check if API key exists
     if not expected:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
-    
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key"
+        )
+
     # Check if valid
     if not secrets.compare_digest(raw_key, expected["api_key"]["key"]):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
-    
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key"
+        )
+
     return str(expected["_id"])

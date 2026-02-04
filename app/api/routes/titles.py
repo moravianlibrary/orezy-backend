@@ -1,4 +1,5 @@
 from datetime import datetime
+import logging
 import os
 from typing import Annotated
 from bson import ObjectId
@@ -29,6 +30,7 @@ from app.tasks.workflows.smartcrop_workflow import autocrop_workflow
 UPLOAD_VOLUME_PATH = os.getenv("SCANS_VOLUME_PATH")
 RETRAIN_VOLUME_PATH = os.getenv("RETRAIN_VOLUME_PATH")
 router = APIRouter(prefix="", tags=["Books"])
+logger = logging.getLogger(__name__)
 
 
 @limiter.limit("60/minute;600/hour")
@@ -74,8 +76,10 @@ async def create_title(
             title_ids=[result.inserted_id], group_id=ObjectId(group_id), db=db
         )
     except Exception as e:
+        logger.error(f"Failed to create title: {e}")
         await delete_title(str(result.inserted_id), db)
         raise HTTPException(400, f"Invalid title data: {e}")
+    logger.info(f"Created new title with id: {result.inserted_id}")
     return {"id": str(result.inserted_id)}
 
 
@@ -124,6 +128,7 @@ async def upload_scan(
             "$set": {"modified_at": datetime.now(), "modified_by": current_user.email},
         },
     )
+    logger.info(f"Uploaded scan '{scan_data.filename}' to title '{title_id}'")
     return {"id": title_id, "filename": scan_data.filename}
 
 
@@ -151,7 +156,7 @@ async def process_title(request: Request, title_id: str, db=Depends(get_db)):
             400,
             f"Title is not in a valid state for processing (new), current state: {current_state}",
         )
-
+    logger.info(f"Scheduling workflow for title ID: {title_id}")
     title = await db.titles.find_one({"_id": ObjectId(title_id)})
 
     # Schedule task and update state
@@ -162,8 +167,10 @@ async def process_title(request: Request, title_id: str, db=Depends(get_db)):
             {"$set": {"state": TaskState.scheduled, "modified_at": datetime.now()}},
         )
     except Exception as e:
+        logger.error(f"Failed to schedule workflow for title ID {title_id}: {e}")
         raise HTTPException(500, f"Failed to schedule workflow: {e}")
 
+    logger.info(f"{title_id} moved to state 'scheduled'")
     return {"state": TaskState.scheduled, "id": str(title["_id"])}
 
 
@@ -225,6 +232,8 @@ async def get_scans(title_id: str, scan_id: str | None = None, db=Depends(get_db
         title, custom_encoder={ObjectId: str}, exclude=["filelist", "external_id"]
     )
 
+    logger.info(f"Fetched {len(title.get('scans', []))} scans for title ID: {title_id}")
+
     return title
 
 
@@ -255,6 +264,10 @@ async def get_predicted_pages(request: Request, title_id: str, db=Depends(get_db
     title["scans"] = format_predicted(scans)
     title = jsonable_encoder(
         title, custom_encoder={ObjectId: str}, exclude=["filelist", "external_id"]
+    )
+
+    logger.info(
+        f"Fetched {len(title.get('scans', []))} predicted scans for title ID: {title_id}"
     )
     return title
 
@@ -356,6 +369,7 @@ async def update_pages(
     Returns:
         dict: Title ID.
     """
+    logger.info(f"Updating pages for title ID: {title_id}")
     if not ObjectId.is_valid(title_id):
         raise HTTPException(400, f"ID '{title_id}' is not a valid ObjectId")
 
@@ -396,6 +410,9 @@ async def update_pages(
             }
         },
     )
+    logger.info(
+        f"{current_user.email} patched {len(scans)} scans and updated state to user_approved for title ID: {title_id}"
+    )
     return {"id": title_id}
 
 
@@ -423,15 +440,20 @@ async def delete_title(request: Request, title_id: str, db=Depends(get_db)):
         {"$pull": {"title_ids": ObjectId(title_id)}},
     )
     # Delete title from DB
-    await db.titles.delete_one({"_id": ObjectId(title_id)})
+    deleted_title = await db.titles.delete_one({"_id": ObjectId(title_id)})
+    logger.debug(f"Deleted title from DB: {deleted_title}")
 
     # Remove associated scans from volume storage
     for volume in [UPLOAD_VOLUME_PATH, RETRAIN_VOLUME_PATH]:
         if os.path.exists(os.path.join(volume, str(title["_id"]))):
             try:
                 for filename in title["filelist"]:
+                    logger.debug(f"Deleting file '{filename}' from volume '{volume}'")
                     os.remove(filename)
                 os.rmdir(os.path.join(volume, str(title["_id"])))
+                logger.info(
+                    f"Deleted {len(title['filelist'])} files for title ID {title_id} from '{volume}'"
+                )
             except Exception as e:
                 raise HTTPException(
                     500, f"Failed to delete volume for title {title_id}: {e}"
@@ -461,6 +483,7 @@ async def reset_predictions(
     if not ObjectId.is_valid(title_id):
         raise HTTPException(400, f"ID '{title_id}' is not a valid ObjectId")
 
+    logger.info(f"Resetting predictions for title ID: {title_id}")
     result = await db.titles.update_one(
         {"_id": ObjectId(title_id)},
         {
