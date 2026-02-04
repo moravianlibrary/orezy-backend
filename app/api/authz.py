@@ -56,6 +56,14 @@ async def from_title_id(title_id: str, db=Depends(get_db)):
     return str(title.get("group_id"))
 
 
+async def from_external_id(external_id: str, db=Depends(get_db)):
+    """Group id provider: Fetch group ID from external ID."""
+    title = await db.titles.find_one({"external_id": external_id})
+    if not title:
+        raise HTTPException(404, "Title not found")
+    return str(title.get("group_id"))
+
+
 async def from_group_id(group_id: str):
     """Group id provider: Pass through group ID."""
     return group_id

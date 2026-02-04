@@ -1,6 +1,5 @@
-import os
 from fastapi import FastAPI
-from app.api.routes import groups, ndk_integration, titles, users
+from app.api.routes import groups, integration, titles, users
 from app.api.setup_db import lifespan
 from fastapi.openapi.utils import get_openapi
 from app.db.schemas.title import TaskState
@@ -11,8 +10,7 @@ setup_logging()
 
 
 app = FastAPI(title="PageTrace API", lifespan=lifespan)
-if os.getenv("NDK_DEPLOYMENT", "false").lower() in ("1", "true", "yes"):
-    app.include_router(ndk_integration.router)
+app.include_router(integration.router)
 app.include_router(titles.router)
 app.include_router(users.router)
 app.include_router(groups.router)
@@ -30,7 +28,7 @@ def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
     openapi_schema = get_openapi(
-        title="SmartCrop API",
+        title="PageTrace API",
         version="1.0.1",
         routes=app.routes,
     )

@@ -27,11 +27,14 @@ async def list_groups(
     db=Depends(get_db),
 ):
     """Lists all groups user belongs to."""
-    group_read_permission_ids = [ObjectId(perm.group_id)
+    group_read_permission_ids = [
+        ObjectId(perm.group_id)
         for perm in current_user.permissions
         if Permission.read_group in perm.permission
     ]
-    groups = await db.groups.find({"_id": {"$in": group_read_permission_ids}}).to_list(length=None)
+    groups = await db.groups.find({"_id": {"$in": group_read_permission_ids}}).to_list(
+        length=None
+    )
     for group in groups:
         # Display permissions inside every group
         group["permissions"] = await get_user_permissions_in_group(
@@ -55,7 +58,9 @@ async def list_groups(
     "/{group_id}",
     dependencies=[
         Depends(
-            require_group_permission(Permission.read_group, group_id_provider=from_group_id)
+            require_group_permission(
+                Permission.read_group, group_id_provider=from_group_id
+            )
         )
     ],
 )

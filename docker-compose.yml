@@ -141,7 +141,6 @@ services:
       - .worker-env
       - .admin-user-env
     environment:
-      NDK_DEPLOYMENT: true
       WEBAPP_FRONTEND_URL: "http://localhost:1234"
       ENABLE_TLS: false
       MONGODB_URI: ${MONGODB_URI}
@@ -172,7 +171,6 @@ services:
     env_file:
       - .worker-env
     environment:
-      NDK_DEPLOYMENT: true
       ENABLE_TLS: false
       MONGODB_URI: ${MONGODB_URI}
       MONGODB_DB: mydb
