@@ -27,19 +27,23 @@ async def list_groups(
     db=Depends(get_db),
 ):
     """Lists all groups user belongs to."""
-    user_group_ids = [ObjectId(perm.group_id) for perm in current_user.permissions]
-    groups = await db.groups.find({"_id": {"$in": user_group_ids}}).to_list(length=None)
+    group_read_permission_ids = [ObjectId(perm.group_id)
+        for perm in current_user.permissions
+        if Permission.read_group in perm.permission
+    ]
+    groups = await db.groups.find({"_id": {"$in": group_read_permission_ids}}).to_list(length=None)
     for group in groups:
-        # join permission with groups
-        group["permission"] = await get_user_permissions_in_group(
+        # Display permissions inside every group
+        group["permissions"] = await get_user_permissions_in_group(
             current_user, ObjectId(group["_id"])
         )
-        if group["permission"] == Permission.manage:
+        # Admin user can also see list of users and api_key
+        if current_user.role == Role.admin:
             group["users"] = await get_users_in_group(ObjectId(group["_id"]), db)
         else:
             group.pop("api_key", None)
 
-        # replace title_ids with title_count
+        # Replace title_ids with title_count
         group["title_count"] = len(group["title_ids"])
         group.pop("title_ids", None)
 
@@ -51,7 +55,7 @@ async def list_groups(
     "/{group_id}",
     dependencies=[
         Depends(
-            require_group_permission(Permission.read, group_id_provider=from_group_id)
+            require_group_permission(Permission.read_group, group_id_provider=from_group_id)
         )
     ],
 )
@@ -98,7 +102,7 @@ async def create_group(
     # Add admins to group
     admin_users = await db.users.find({"role": Role.admin.value}).to_list(length=None)
     new_permission = Maintains(
-        group_id=str(result.inserted_id), permission=Permission.manage
+        group_id=str(result.inserted_id), permission=list(Permission)
     ).model_dump()
     await db.users.update_many(
         {"_id": {"$in": [user["_id"] for user in admin_users]}},
@@ -116,7 +120,7 @@ async def add_group_member(
     request: Request,
     group_id: str,
     user_id: str,
-    permission: Permission,
+    permission: list[Permission],
     db=Depends(get_db),
 ):
     """Updates group members and their permissions."""
@@ -143,7 +147,7 @@ async def update_group_member(
     request: Request,
     group_id: str,
     user_id: str,
-    permission: Permission,
+    permission: list[Permission],
     db=Depends(get_db),
 ):
     """Updates group members and their permissions."""
@@ -154,7 +158,7 @@ async def update_group_member(
         )
 
     user_permission = await db.users.find_one(
-        {"_id": ObjectId(user_id), "permissions.group_id": group_id},
+        {"_id": ObjectId(user_id), "permissions.group_id": ObjectId(group_id)},
         {"permissions.$": 1},
     )
     if not user_permission:
@@ -163,7 +167,7 @@ async def update_group_member(
             detail="User is not a member of the group",
         )
     await db.users.update_one(
-        {"_id": ObjectId(user_id), "permissions.group_id": group_id},
+        {"_id": ObjectId(user_id), "permissions.group_id": ObjectId(group_id)},
         {"$set": {"permissions.$.permission": permission}},
     )
 
@@ -259,11 +263,7 @@ async def delete_group(request: Request, group_id: str, db=Depends(get_db)):
 @limiter.limit("1/minute")
 @router.post(
     "/{group_id}/api-key",
-    dependencies=[
-        Depends(
-            require_group_permission(Permission.manage, group_id_provider=from_group_id)
-        )
-    ],
+    dependencies=[Depends(require_role(Role.admin))],
 )
 async def revoke_group_api_key(
     request: Request,

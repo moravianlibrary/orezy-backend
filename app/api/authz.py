@@ -36,19 +36,11 @@ class GroupGuard:
 
     def __init__(self, required_permission: Permission):
         self.required_permission = required_permission
-        self.permission_mapping = {
-            Permission.read: 1,
-            Permission.write: 2,
-            Permission.manage: 3,
-        }
 
     def __call__(self, group_id: str, user: User = Depends(get_current_user)):
         for perm in user.permissions:
             if str(perm.group_id) == group_id:
-                if (
-                    self.permission_mapping[perm.permission]
-                    >= self.permission_mapping[self.required_permission]
-                ):
+                if self.required_permission in perm.permission:
                     return user
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

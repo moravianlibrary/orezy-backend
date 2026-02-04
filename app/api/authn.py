@@ -135,7 +135,7 @@ async def get_current_user(
                 "email": "api@request.user",
                 "full_name": "API request",
                 "role": "user",
-                "permissions": [{"group_id": group_id, "permission": "manage"}],
+                "permissions": [{"group_id": group_id, "permission": ["upload", "read_title"]}],
             }
         return User(**user)
     except Exception:
