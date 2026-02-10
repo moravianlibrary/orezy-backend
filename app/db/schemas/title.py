@@ -29,11 +29,6 @@ class TaskState(str, Enum):
     completed = "completed"
 
 
-class CropMethod(str, Enum):
-    inner = "inner"
-    outer = "outer"
-
-
 class Page(BaseModelWithId):
     xc: float
     yc: float
@@ -41,7 +36,6 @@ class Page(BaseModelWithId):
     height: float
     confidence: float = 0
     angle: float = 0
-    type: str | None = None
     flags: list[Anomaly] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -72,23 +66,14 @@ class TitleCreate(BaseModel):
 
     external_id: str | None = None
     filelist: list[str] = Field(default_factory=list)
-    crop_method: CropMethod = Field(default=CropMethod.inner)
-
-    crop_type_code: str | None = None
-    double_page: bool = False
-    scanner_code: str | None = None
-    scan_type_code: str | None = None
-    scan_mode_code: str | None = None
-    color_code: str | None = None
-    page_count: int | None = None
-    scan_count: int | None = None
-    note: str | None = None
+    model: str = "default"
+    metadata: dict | None = None
 
 
 class Title(BaseModelWithId):
     external_id: str | None = None
     filelist: list[str] = Field(default_factory=list)
-    crop_method: CropMethod
+    model: str
     created_at: datetime = Field(default_factory=datetime.now)
     modified_at: datetime = Field(default_factory=datetime.now)
     modified_by: str | None = None
@@ -97,12 +82,4 @@ class Title(BaseModelWithId):
 
     group_id: ObjectIdField | None = None
 
-    crop_type_code: str | None = None
-    double_page: bool = False
-    scanner_code: str | None = None
-    scan_type_code: str | None = None
-    scan_mode_code: str | None = None
-    color_code: str | None = None
-    page_count: int | None = None
-    scan_count: int | None = None
-    note: str | None = None
+    metadata: dict | None = None

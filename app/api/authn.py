@@ -117,7 +117,10 @@ async def get_current_user(
                 "full_name": "API request",
                 "role": "user",
                 "permissions": [
-                    {"group_id": group_id, "permission": ["upload", "read_title"]}
+                    {
+                        "group_id": group_id,
+                        "permission": ["upload", "read_title", "read_group"],
+                    },
                 ],
             }
         return User(**user)

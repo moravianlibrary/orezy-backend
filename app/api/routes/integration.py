@@ -123,9 +123,7 @@ async def open_webapp(external_id: str, db=Depends(get_db)):
     url = urljoin(WEBAPP_URL, f"book/{title['_id']}")
     logger.info(f"Redirecting to {url}")
 
-    return RedirectResponse(
-        url=url, status_code=301
-    )
+    return RedirectResponse(url=url, status_code=301)
 
 
 @router.get(

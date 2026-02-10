@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.api.routes import groups, integration, titles, users
+from app.api.routes import groups, integration, titles, users, models
 from app.api.setup_db import lifespan
 from fastapi.openapi.utils import get_openapi
 from app.db.schemas.title import TaskState
@@ -14,6 +14,7 @@ app.include_router(integration.router)
 app.include_router(titles.router)
 app.include_router(users.router)
 app.include_router(groups.router)
+app.include_router(models.router)
 
 app.add_middleware(
     CORSMiddleware,

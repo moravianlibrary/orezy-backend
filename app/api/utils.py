@@ -17,7 +17,13 @@ def format_page_data_flat(scans: list[Scan]) -> list[dict]:
             if scan.user_edited_pages is not None
             else scan.predicted_pages
         )
-        for page in pages:
+
+        if len(pages) == 2:
+            page_types = ["left", "right"]
+        else:
+            page_types = ["single"] * len(pages)
+
+        for page, page_type in zip(pages, page_types):
             formatted_pages.append(
                 {
                     "filename": scan.filename,
@@ -26,7 +32,7 @@ def format_page_data_flat(scans: list[Scan]) -> list[dict]:
                     "width": page.width,
                     "height": page.height,
                     "angle": page.angle,
-                    "type": page.type,
+                    "type": page_type,
                 }
             )
     return formatted_pages

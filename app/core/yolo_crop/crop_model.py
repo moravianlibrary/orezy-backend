@@ -1,11 +1,11 @@
 import logging
+import os
 import cv2
 from ultralytics import YOLO
 
 from app.db.schemas.title import Page, Scan
 from app.core.utils import (
     add_margin,
-    assign_page_type,
     bbox_from_image_contours,
     merge_overlaps,
 )
@@ -14,17 +14,16 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-crop_model = None
+crop_model = {}
 
 
-def _ensure_crop_model():
+def _ensure_crop_model(name: str) -> YOLO:
     global crop_model
-    if crop_model is None:
-        crop_model = YOLO(
-            "models/crop-yolov10s-100e-mosaic-best.pt",
-            task="detect",
-        )
-    return crop_model
+    if name not in crop_model:
+        # Initialize the YOLO model and store it in the global variable
+        path = os.path.join(os.getenv("MODELS_VOLUME_PATH"), f"{name}.pt")
+        crop_model[name] = YOLO(path, task="detect")
+    return crop_model[name]
 
 
 def crop_images_outer(filelist: list[str]) -> list[Scan]:
@@ -63,15 +62,14 @@ def crop_images_outer(filelist: list[str]) -> list[Scan]:
                 confidence=1.0,
             )
         )
-        scan = assign_page_type(scan)
         results.append(scan)
 
         logger.info(f"Cropped image {file} to box: {outer_box}")
     return results
 
 
-def crop_images_inner(
-    filelist: list[str], batch_size: int = 16, crop_model=_ensure_crop_model()
+def crop_images(
+    filelist: list[str], crop_model: str, batch_size: int = 16
 ) -> list[Scan]:
     """Crops images in the input folder using a pretrained YOLO model.
 
@@ -81,10 +79,12 @@ def crop_images_inner(
     Returns:
         List[Scan]: List of detected pages with bounding boxes.
     """
+    model = _ensure_crop_model(crop_model)
     results = []
     for i in range(0, len(filelist), batch_size):
+        # Predict per batch
         batch = filelist[i : i + batch_size]
-        batch_result = crop_model.predict(
+        batch_result = model.predict(
             batch, conf=0.1, iou=0, max_det=2, agnostic_nms=True
         )
 
@@ -120,8 +120,6 @@ def crop_images_inner(
                         confidence=box.conf.item(),
                     )
                 )
-            # Divide pages into left - right based on xc
-            scan = assign_page_type(scan)
             # Merge overlapping pages
             scan = merge_overlaps(scan)
             results.append(scan)

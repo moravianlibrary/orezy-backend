@@ -38,6 +38,21 @@ class GroupGuard:
         self.required_permission = required_permission
 
     def __call__(self, group_id: str, user: User = Depends(get_current_user)):
+        # If group_id is None, check if user has the required permission in any group
+        if group_id is None:
+            all_permissions_types = set()
+            for perm in user.permissions:
+                all_permissions_types.update(perm.permission)
+            logger.info(
+                f"Checking permissions in any group: user permissions={all_permissions_types}, required permission={self.required_permission}"
+            )
+            if self.required_permission in all_permissions_types:
+                return user
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions",
+            )
+        # Else, check if user has the required permission in the specified group
         for perm in user.permissions:
             if str(perm.group_id) == group_id:
                 if self.required_permission in perm.permission:
@@ -51,22 +66,27 @@ class GroupGuard:
 async def from_title_id(title_id: str, db=Depends(get_db)):
     """Group id provider: Fetch group ID from title ID."""
     title = await db.titles.find_one({"_id": ObjectId(title_id)})
-    if not title:
+    if not title or "group_id" not in title:
         raise HTTPException(404, "Title not found")
-    return str(title.get("group_id"))
+    return str(title["group_id"])
 
 
 async def from_external_id(external_id: str, db=Depends(get_db)):
     """Group id provider: Fetch group ID from external ID."""
     title = await db.titles.find_one({"external_id": external_id})
-    if not title:
+    if not title or "group_id" not in title:
         raise HTTPException(404, "Title not found")
-    return str(title.get("group_id"))
+    return str(title["group_id"])
 
 
 async def from_group_id(group_id: str):
     """Group id provider: Pass through group ID."""
     return group_id
+
+
+async def in_any_group():
+    """Group id provider: Pass through any group ID from user permissions."""
+    return None  # This will be handled in the guard to check all groups
 
 
 def require_group_permission(

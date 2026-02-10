@@ -173,7 +173,12 @@ async def update_group_member(
         )
     await db.users.update_one(
         {"_id": ObjectId(user_id), "permissions.group_id": ObjectId(group_id)},
-        {"$set": {"permissions.$.permission": permission}},
+        {
+            "$set": {
+                "permissions.$.permission": permission,
+                "modified_at": datetime.now(),
+            }
+        },
     )
 
     return {"detail": "Group member updated"}
@@ -209,6 +214,7 @@ async def remove_group_member(
     await db.users.update_one(
         {"_id": ObjectId(user_id)},
         {"$pull": {"permissions": {"group_id": ObjectId(group_id)}}},
+        {"$set": {"modified_at": datetime.now()}},
     )
 
     return {"detail": "Group member removed"}
@@ -258,6 +264,7 @@ async def delete_group(request: Request, group_id: str, db=Depends(get_db)):
     await db.users.update_many(
         {"_id": {"$in": group_permissions}},
         {"$pull": {"permissions": {"group_id": group_id}}},
+        {"$set": {"modified_at": datetime.now()}},
     )
     # Cascade - Remove titles in the group
     await db.titles.delete_many({"group_id": group_id})

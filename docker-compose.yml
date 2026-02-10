@@ -147,6 +147,7 @@ services:
       MONGODB_DB: mydb
       SCANS_VOLUME_PATH: /upload_data
       RETRAIN_VOLUME_PATH: /retrain_data
+      MODELS_VOLUME_PATH: /models
       WEBAPP_TOKEN: ${WEBAPP_TOKEN}
       PWD_SECRET: ${PWD_SECRET}
     healthcheck:
@@ -159,6 +160,7 @@ services:
     volumes:
       - scan_data:/upload_data
       - retrain_data:/retrain_data
+      - models:/models
 
   worker:
     image: trinera/smart-crop:1.0.0
@@ -175,9 +177,12 @@ services:
       MONGODB_URI: ${MONGODB_URI}
       MONGODB_DB: mydb
       RETRAIN_VOLUME_PATH: /retrain_data
+      MODELS_VOLUME_PATH: /models
     restart: unless-stopped
     volumes:
        - scan_data:/upload_data
+       - retrain_data:/retrain_data
+       - models:/models
   
   web-app:
     image: trinera/smart-crop-webapp:1.0.0
@@ -198,3 +203,4 @@ volumes:
   mongo_data:
   scan_data:
   retrain_data:
+  models:

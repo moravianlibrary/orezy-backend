@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 from typing import Annotated
 
@@ -90,7 +90,30 @@ async def get_all_users(
             {"permissions.group_id": ObjectId(group_id)}
         ).to_list()
     else:
-        users = await db.users.find().to_list()
+        users = await db.users.find({}).to_list(length=None)
+
+    # Collect unique group_ids from all users
+    group_ids = {
+        p["group_id"]
+        for u in users
+        for p in (u.get("permissions") or [])
+        if p.get("group_id") is not None
+    }
+
+    groups = await db.groups.find(
+        {"_id": {"$in": list(group_ids)}},
+        {"name": 1},
+    ).to_list(length=None)
+
+    group_name_by_id = {g["_id"]: g["name"] for g in groups}
+
+    # Enrich users in-memory
+    for u in users:
+        for p in u.get("permissions") or []:
+            gid = p.get("group_id")
+            p["group_name"] = group_name_by_id.get(gid)
+
+    # users now contains permissions[*].group_name
     return jsonable_encoder(users, exclude=["password"], custom_encoder={ObjectId: str})
 
 
@@ -104,6 +127,19 @@ async def get_user(request: Request, user_id: str, db=Depends(get_db)):
     user = await db.users.find_one({"_id": ObjectId(user_id)})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    group_ids = [
+        p["group_id"]
+        for p in user.get("permissions", [])
+        if p.get("group_id") is not None
+    ]
+    groups = await db.groups.find({"_id": {"$in": group_ids}}, {"name": 1}).to_list(
+        length=None
+    )
+    group_name_by_id = {g["_id"]: g["name"] for g in groups}
+    for p in user.get("permissions", []):
+        gid = p.get("group_id")
+        p["group_name"] = group_name_by_id.get(gid)
     return jsonable_encoder(user, exclude=["password"], custom_encoder={ObjectId: str})
 
 
@@ -157,6 +193,7 @@ async def update_user(
         update_data = {
             k: v for k, v in user.model_dump(by_alias=True).items() if v is not None
         }
+        update_data["modified_at"] = datetime.now()
         await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": update_data})
         updated_user = await db.users.find_one({"_id": ObjectId(user_id)})
     except Exception as e:
@@ -189,7 +226,8 @@ async def reset_password(
     hashed_password = get_password_hash(new_password)
 
     await db.users.update_one(
-        {"_id": ObjectId(user_id)}, {"$set": {"password": hashed_password}}
+        {"_id": ObjectId(user_id)},
+        {"$set": {"password": hashed_password, "modified_at": datetime.now()}},
     )
 
     return {"detail": "Password reset successfully", "new_password": new_password}
