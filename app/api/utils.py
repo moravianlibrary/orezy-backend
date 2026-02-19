@@ -1,11 +1,13 @@
 from io import BytesIO
+import logging
 import os
 from fastapi.encoders import jsonable_encoder
 from app.db.schemas.title import Scan
-from PIL import Image
+from PIL import Image, ImageOps
 
 
 RETRAIN_VOLUME_PATH = os.getenv("RETRAIN_VOLUME_PATH")
+logger = logging.getLogger(__name__)
 
 
 def format_page_data_flat(scans: list[Scan]) -> list[dict]:
@@ -94,8 +96,11 @@ def resize_image(file_name, max_size: tuple = (160, 160)):
         bytes: Resized image bytes.
     """
     image = Image.open(file_name)
+    image = ImageOps.exif_transpose(image)
     image.thumbnail(max_size)
     output = BytesIO()
+    if image.mode in ("RGBA", "P"):
+        image = image.convert("RGB")
     image.save(output, format="JPEG")
     return output.getvalue()
 
@@ -109,21 +114,20 @@ def copy_images_for_retraining(id, filelist: list[str]) -> list[str]:
     Returns:
         list[str]: List of new file paths in retraining folder.
     """
-    path = os.path.join(RETRAIN_VOLUME_PATH, str(id))
-    os.makedirs(path, exist_ok=True)
+    retrain_path = os.path.join(RETRAIN_VOLUME_PATH, str(id))
+    logger.info(f"Creating retraining directory at {retrain_path}")
+    os.makedirs(retrain_path, exist_ok=True)
 
     retrain_filelist = []
     for file_path in filelist:
-        image = Image.open(file_path)
-        # Resize to 960 px
-        h, w = image.size
-        nh, nw = 960, int(w * (960 / h))
-        image = image.resize((nh, nw))
+        resized_image = resize_image(file_path, max_size=(960, 960))
 
         # Save as JPEG
-        basename = os.path.basename(file_path).split(".")[0] + ".jpg"
-        image.save(os.path.join(path, basename), format="JPEG")
-        retrain_filelist.append(os.path.join(path, basename))
+        basename = os.path.basename(file_path)
+        basename = basename.rsplit(".", 1)[0] + ".jpg"
+        with open(os.path.join(retrain_path, basename), "wb") as f:
+            f.write(resized_image)
+        retrain_filelist.append(os.path.join(retrain_path, basename))
 
     return retrain_filelist
 
