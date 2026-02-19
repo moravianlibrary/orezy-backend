@@ -2,6 +2,7 @@ from datetime import datetime
 import logging
 import os
 from urllib.parse import urljoin
+from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException
 import grpc
 from app.api.authz import from_group_id, from_external_id, require_group_permission
@@ -50,14 +51,22 @@ async def create_title(group_id: str, title_data: TitleCreate, db=Depends(get_db
 
     try:
         doc = Title(**created_title).model_dump(by_alias=True)
-        doc["group_id"] = group_id
         if doc["external_id"] is None:
             doc["external_id"] = str(doc["_id"])
+        if doc["model"] is None:
+            doc["model"] = (
+                await db.groups.find_one(
+                    {"_id": ObjectId(group_id)}, {"default_model": 1}
+                )
+            )["default_model"]
+            logger.debug(
+                f"Set default model '{doc['model']}' for title based on group settings"
+            )
         await db.titles.insert_one(doc)
 
         # Assign to the default group
         await link_titles_to_group_bulk(
-            title_ids=[doc["_id"]], group_id=group_id, db=db
+            title_ids=[ObjectId(doc["_id"])], group_id=ObjectId(group_id), db=db
         )
     except DuplicateKeyError:
         raise HTTPException(400, "Title with this id already exists")
@@ -185,10 +194,11 @@ async def mark_completed(external_id: str, db=Depends(get_db)):
         # Copy images for retraining, update filepaths
         retrain_filelist = copy_images_for_retraining(title["_id"], title["filelist"])
         logger.info(
-            f"Title {external_id} marked for retraining, {len(errors)} pages edited by user."
+            f"Title {external_id} marked for retraining, {len(errors)} pages edited by user. Copied {len(retrain_filelist)} files."
         )
         for scan, new_file in zip(scans, retrain_filelist):
             scan.filename = new_file
+            logger.info(f"Updated scan filename to {new_file}")
 
         # Replace filepaths and mark for retraining
         await db.titles.update_one(

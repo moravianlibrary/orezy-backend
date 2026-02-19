@@ -15,7 +15,7 @@ from app.api.utils import (
     resize_image,
     sniff_media_type,
 )
-from app.db.operations.api import link_titles_to_group_bulk
+from app.db.operations.api import link_titles_to_group_bulk, remove_title
 from app.db.schemas.title import (
     Scan,
     ScanUpdate,
@@ -63,7 +63,17 @@ async def create_title(
         title_dict = Title(**created_title).model_dump(by_alias=True)
         title_dict["state"] = TaskState.new
         title_dict["filelist"] = []
-        title_dict["external_id"] = str(title_dict["_id"])
+        if title_dict["external_id"] is None:
+            title_dict["external_id"] = str(title_dict["_id"])
+        if title_dict["model"] is None:
+            title_dict["model"] = (
+                await db.groups.find_one(
+                    {"_id": ObjectId(group_id)}, {"default_model": 1}
+                )
+            )["default_model"]
+            logger.debug(
+                f"Set default model '{title_dict['model']}' for title based on group settings"
+            )
         title_dict["modified_by"] = current_user.email
         result = await db.titles.insert_one(title_dict)
 
@@ -114,10 +124,20 @@ async def upload_scan(
             f"Title is not in a valid state for uploading scans (new), current state: {current_state}",
         )
 
+    content = await scan_data.read()
+    # Convert to JPEG
+    media_type = sniff_media_type(content[:16])
+    if not media_type == "image/jpeg":
+        logger.debug(
+            f"Converting uploaded image '{scan_data.filename}' from {media_type} to JPEG"
+        )
+        content = resize_image(scan_data.file, (1400, 1400))
+        media_type = "image/jpeg"
+        scan_data.filename = scan_data.filename.rsplit(".", 1)[0] + ".jpg"
+
     # Save scan file to volume storage
     scan_path = os.path.join(UPLOAD_VOLUME_PATH, title_id, scan_data.filename)
     with open(scan_path, "wb") as f:
-        content = await scan_data.read()
         f.write(content)
 
     # Update title entry in DB
@@ -233,7 +253,7 @@ async def get_scans(title_id: str, scan_id: str | None = None, db=Depends(get_db
     scans = sorted(scans, key=lambda s: s.filename)
     title["scans"] = format_page_data_list(scans)
     title = jsonable_encoder(
-        title, custom_encoder={ObjectId: str}, exclude=["filelist", "external_id"]
+        title, custom_encoder={ObjectId: str}, exclude=["filelist"]
     )
 
     logger.info(f"Fetched {len(title.get('scans', []))} scans for title ID: {title_id}")
@@ -269,7 +289,7 @@ async def get_predicted_pages(request: Request, title_id: str, db=Depends(get_db
     scans = sorted(scans, key=lambda s: s.filename)
     title["scans"] = format_predicted(scans)
     title = jsonable_encoder(
-        title, custom_encoder={ObjectId: str}, exclude=["filelist", "external_id"]
+        title, custom_encoder={ObjectId: str}, exclude=["filelist"]
     )
 
     logger.info(
@@ -444,24 +464,12 @@ async def delete_title(request: Request, title_id: str, db=Depends(get_db)):
         {"$pull": {"title_ids": ObjectId(title_id)}},
     )
     # Delete title from DB
-    deleted_title = await db.titles.delete_one({"_id": ObjectId(title_id)})
-    logger.debug(f"Deleted title from DB: {deleted_title}")
+    try:
+        await remove_title(Title(**title), db)
+    except Exception as e:
+        logger.error(f"Failed to delete title ID {title_id}: {e}")
+        raise HTTPException(500, f"Failed to delete title: {e}")
 
-    # Remove associated scans from volume storage
-    for volume in [UPLOAD_VOLUME_PATH, RETRAIN_VOLUME_PATH]:
-        if os.path.exists(os.path.join(volume, str(title["_id"]))):
-            try:
-                for filename in title["filelist"]:
-                    logger.debug(f"Deleting file '{filename}' from volume '{volume}'")
-                    os.remove(filename)
-                os.rmdir(os.path.join(volume, str(title["_id"])))
-                logger.info(
-                    f"Deleted {len(title['filelist'])} files for title ID {title_id} from '{volume}'"
-                )
-            except Exception as e:
-                raise HTTPException(
-                    500, f"Failed to delete volume for title {title_id}: {e}"
-                )
     return {"detail": "Title and associated scans deleted"}
 
 

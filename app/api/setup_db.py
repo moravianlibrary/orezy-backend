@@ -86,4 +86,6 @@ async def create_admin(db):
     user["password"] = password_hash.hash(user["password"])
 
     await db.users.insert_one(user)
-    logger.info(f"Admin user '{user['email']}' created with permissions for all groups.")
+    logger.info(
+        f"Admin user '{user['email']}' created with permissions for all groups."
+    )

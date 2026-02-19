@@ -6,11 +6,17 @@ from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.encoders import jsonable_encoder
 from app.api.limiter import limiter
+from app.api.routes.models import list_models
 from app.api.setup_db import get_db
 from app.api.authz import from_group_id, require_group_permission, require_role
-from app.db.operations.api import get_user_permissions_in_group, get_users_in_group
+from app.db.operations.api import (
+    get_user_permissions_in_group,
+    get_users_in_group,
+    remove_title,
+)
 from app.db.schemas.group import APIkey, Group, GroupCreate, GroupUpdate
-from app.db.schemas.user import Maintains, Permission, Role, User
+from app.db.schemas.title import Title
+from app.db.schemas.user import Maintains, Permission, PermissionRequest, Role, User
 from app.api.authn import (
     get_current_user,
 )
@@ -81,7 +87,14 @@ async def get_titles(request: Request, group_id: str, db=Depends(get_db)):
 
     titles = await db.titles.find(
         {"group_id": ObjectId(group_id)},
-        {"_id": 1, "state": 1, "created_at": 1, "modified_at": 1},
+        {
+            "_id": 1,
+            "state": 1,
+            "created_at": 1,
+            "modified_at": 1,
+            "external_id": 1,
+            "model": 1,
+        },
     ).to_list(None)
 
     # Show most recently created titles first
@@ -101,6 +114,13 @@ async def create_group(
     db=Depends(get_db),
 ):
     """Creates a new group."""
+    models = await list_models()
+    if group.default_model not in models["available_models"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Model '{group.default_model}' does not exist",
+        )
+
     group = Group(**group.model_dump()).model_dump(by_alias=True)
     result = await db.groups.insert_one(group)
 
@@ -118,14 +138,11 @@ async def create_group(
 
 
 @limiter.limit("60/minute;600/hour")
-@router.post(
-    "/{group_id}/members/{user_id}", dependencies=[Depends(require_role(Role.admin))]
-)
-async def add_group_member(
+@router.post("/{group_id}/members", dependencies=[Depends(require_role(Role.admin))])
+async def bulk_add_group_members(
     request: Request,
     group_id: str,
-    user_id: str,
-    permission: list[Permission],
+    permission_requests: list[PermissionRequest],
     db=Depends(get_db),
 ):
     """Updates group members and their permissions."""
@@ -135,24 +152,44 @@ async def add_group_member(
             status_code=status.HTTP_404_NOT_FOUND, detail="Group not found"
         )
 
-    new_permission = Maintains(group_id=group_id, permission=permission).model_dump()
-    await db.users.update_one(
-        {"_id": ObjectId(user_id)},
-        {"$push": {"permissions": new_permission}},
-    )
+    # Check if we can perform update - if user is already a member of the group, we cannot add them again
+    for perm_request in permission_requests:
+        user_permission = await db.users.find_one(
+            {
+                "_id": ObjectId(perm_request.user_id),
+                "permissions.group_id": ObjectId(group_id),
+            },
+            {"permissions.$": 1},
+        )
+        if user_permission:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"User {perm_request.user_id} is already a member of the group",
+            )
+        if not perm_request.user_permissions:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Permissions cannot be empty",
+            )
+    # Post request
+    for perm_request in permission_requests:
+        new_permission = Maintains(
+            group_id=group_id, permission=perm_request.user_permissions
+        ).model_dump()
+        await db.users.update_one(
+            {"_id": ObjectId(perm_request.user_id)},
+            {"$push": {"permissions": new_permission}},
+        )
 
-    return {"detail": "Group member added"}
+    return {"detail": "Group members added"}
 
 
 @limiter.limit("60/minute;600/hour")
-@router.patch(
-    "/{group_id}/members/{user_id}", dependencies=[Depends(require_role(Role.admin))]
-)
-async def update_group_member(
+@router.patch("/{group_id}/members", dependencies=[Depends(require_role(Role.admin))])
+async def bulk_update_group_members(
     request: Request,
     group_id: str,
-    user_id: str,
-    permission: list[Permission],
+    permission_requests: list[PermissionRequest],
     db=Depends(get_db),
 ):
     """Updates group members and their permissions."""
@@ -162,62 +199,87 @@ async def update_group_member(
             status_code=status.HTTP_404_NOT_FOUND, detail="Group not found"
         )
 
-    user_permission = await db.users.find_one(
-        {"_id": ObjectId(user_id), "permissions.group_id": ObjectId(group_id)},
-        {"permissions.$": 1},
-    )
-    if not user_permission:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User is not a member of the group",
-        )
-    await db.users.update_one(
-        {"_id": ObjectId(user_id), "permissions.group_id": ObjectId(group_id)},
-        {
-            "$set": {
-                "permissions.$.permission": permission,
-                "modified_at": datetime.now(),
-            }
-        },
-    )
-
-    return {"detail": "Group member updated"}
-
-
-@limiter.limit("60/minute;600/hour")
-@router.delete(
-    "/{group_id}/members/{user_id}", dependencies=[Depends(require_role(Role.admin))]
-)
-async def remove_group_member(
-    request: Request,
-    group_id: str,
-    user_id: str,
-    db=Depends(get_db),
-):
-    group = await db.groups.find_one({"_id": ObjectId(group_id)})
-    if not group:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Group not found"
-        )
-
-    # Prevent removing admin users
+    # Check if we can perform update - if user is not a member of the group, we cannot update permissions
     admin_user_ids = await db.users.find({"role": Role.admin.value}).to_list(
         length=None
     )
     admin_user_ids = [user["_id"] for user in admin_user_ids]
-    if ObjectId(user_id) in admin_user_ids:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot remove admin users from group",
+    for perm_request in permission_requests:
+        user_permission = await db.users.find_one(
+            {
+                "_id": ObjectId(perm_request.user_id),
+                "permissions.group_id": ObjectId(group_id),
+            },
+            {"permissions.$": 1},
+        )
+        if not user_permission:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User {perm_request.user_id} is not a member of the group",
+            )
+        if ObjectId(perm_request.user_id) in admin_user_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot change permissions for admin user {perm_request.user_id}",
+            )
+        if not perm_request.user_permissions:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Permissions cannot be empty",
+            )
+    # Patch request
+    for perm_request in permission_requests:
+        await db.users.update_one(
+            {
+                "_id": ObjectId(perm_request.user_id),
+                "permissions.group_id": ObjectId(group_id),
+            },
+            {
+                "$set": {
+                    "permissions.$.permission": perm_request.user_permissions,
+                    "modified_at": datetime.now(),
+                }
+            },
         )
 
-    await db.users.update_one(
-        {"_id": ObjectId(user_id)},
-        {"$pull": {"permissions": {"group_id": ObjectId(group_id)}}},
-        {"$set": {"modified_at": datetime.now()}},
+    return {"detail": "Group members updated"}
+
+
+@limiter.limit("60/minute;600/hour")
+@router.delete("/{group_id}/members", dependencies=[Depends(require_role(Role.admin))])
+async def bulk_remove_group_members(
+    request: Request,
+    group_id: str,
+    user_ids: list[str],
+    db=Depends(get_db),
+):
+    group = await db.groups.find_one({"_id": ObjectId(group_id)})
+    if not group:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Group not found"
+        )
+
+    # Check if we can perform update - prevent removing admin users
+    admin_user_ids = await db.users.find({"role": Role.admin.value}).to_list(
+        length=None
+    )
+    admin_user_ids = [user["_id"] for user in admin_user_ids]
+    for user_id in user_ids:
+        if ObjectId(user_id) in admin_user_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot remove admin users from group",
+            )
+    # Delete request
+    await db.users.update_many(
+        {"_id": {"$in": [ObjectId(user_id) for user_id in user_ids]}},
+        {
+            "$pull": {"permissions": {"group_id": ObjectId(group_id)}},
+            "$set": {"modified_at": datetime.now()},
+        },
     )
 
-    return {"detail": "Group member removed"}
+    return {"detail": "Group members removed"}
 
 
 @limiter.limit("60/minute;600/hour")
@@ -236,6 +298,16 @@ async def update_group(
         )
 
     update_data = {k: v for k, v in group.model_dump().items() if v is not None}
+    models = await list_models()
+    if (
+        update_data.get("default_model")
+        and group.default_model not in models["available_models"]
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Model '{group.default_model}' does not exist",
+        )
+
     update_data["modified_at"] = datetime.now()
     if update_data:
         await db.groups.update_one(
@@ -256,18 +328,24 @@ async def delete_group(request: Request, group_id: str, db=Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND, detail="Group not found"
         )
 
-    # Delete group
-    await db.groups.delete_one({"_id": ObjectId(group_id)})
-
-    # Remove from users
-    group_permissions = await db.users.distinct("permissions", {"group_ids": group_id})
-    await db.users.update_many(
-        {"_id": {"$in": group_permissions}},
-        {"$pull": {"permissions": {"group_id": group_id}}},
-        {"$set": {"modified_at": datetime.now()}},
+    # Cascade - Remove users from group
+    deleted_users = await db.users.update_many(
+        {"permissions.group_id": ObjectId(group_id)},
+        {
+            "$pull": {"permissions": {"group_id": ObjectId(group_id)}},
+            "$set": {"modified_at": datetime.now()},
+        },
+    )
+    logger.info(
+        f"Removed group {group_id} from users: {deleted_users.modified_count} users updated"
     )
     # Cascade - Remove titles in the group
-    await db.titles.delete_many({"group_id": group_id})
+    titles = await db.titles.find({"group_id": ObjectId(group_id)}).to_list(length=None)
+    for title in titles:
+        await remove_title(Title(**title), db)
+
+    # Remove group
+    await db.groups.delete_one({"_id": ObjectId(group_id)})
 
     return {"detail": "Group deleted"}
 

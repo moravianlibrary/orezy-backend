@@ -23,11 +23,13 @@ class Group(BaseModelWithId):
     created_at: datetime = Field(default_factory=datetime.now)
     modified_at: datetime = Field(default_factory=datetime.now)
     api_key: APIkey = Field(default_factory=lambda: APIkey())
+    default_model: str
 
 
 class GroupCreate(BaseModel):
     name: str
     description: str | None = None
+    default_model: str = "default"
 
 
 class GroupUpdate(BaseModel):
@@ -35,3 +37,4 @@ class GroupUpdate(BaseModel):
 
     name: str | None = None
     description: str | None = None
+    default_model: str | None = None

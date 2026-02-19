@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.security import OAuth2PasswordRequestForm
 from app.api.setup_db import get_db
+from app.db.operations.api import add_group_name_to_user_response
 from app.deps import settings_api
 from app.api.authz import from_title_id, require_role
 from app.db.schemas.user import Role, User, UserCreate, UserUpdate
@@ -128,18 +129,7 @@ async def get_user(request: Request, user_id: str, db=Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    group_ids = [
-        p["group_id"]
-        for p in user.get("permissions", [])
-        if p.get("group_id") is not None
-    ]
-    groups = await db.groups.find({"_id": {"$in": group_ids}}, {"name": 1}).to_list(
-        length=None
-    )
-    group_name_by_id = {g["_id"]: g["name"] for g in groups}
-    for p in user.get("permissions", []):
-        gid = p.get("group_id")
-        p["group_name"] = group_name_by_id.get(gid)
+    user = await add_group_name_to_user_response(User(**user), db)
     return jsonable_encoder(user, exclude=["password"], custom_encoder={ObjectId: str})
 
 
@@ -172,7 +162,6 @@ async def register_user(request: Request, user: UserCreate, db=Depends(get_db)):
 @limiter.limit("60/minute;600/hour")
 @router.patch(
     "/{user_id}",
-    response_model=User,
     dependencies=[Depends(require_role(Role.admin))],
 )
 async def update_user(
@@ -196,6 +185,7 @@ async def update_user(
         update_data["modified_at"] = datetime.now()
         await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": update_data})
         updated_user = await db.users.find_one({"_id": ObjectId(user_id)})
+        updated_user = await add_group_name_to_user_response(User(**updated_user), db)
     except Exception as e:
         raise HTTPException(
             status_code=400,

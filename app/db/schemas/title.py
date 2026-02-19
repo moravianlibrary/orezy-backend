@@ -66,14 +66,14 @@ class TitleCreate(BaseModel):
 
     external_id: str | None = None
     filelist: list[str] = Field(default_factory=list)
-    model: str = "default"
+    model: str | None = None
     metadata: dict | None = None
 
 
 class Title(BaseModelWithId):
     external_id: str | None = None
     filelist: list[str] = Field(default_factory=list)
-    model: str
+    model: str | None = None
     created_at: datetime = Field(default_factory=datetime.now)
     modified_at: datetime = Field(default_factory=datetime.now)
     modified_by: str | None = None
