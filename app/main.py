@@ -1,10 +1,13 @@
 from fastapi import FastAPI
+from app.api import limiter
 from app.api.routes import groups, integration, titles, users, models
 from app.api.setup_db import lifespan
 from fastapi.openapi.utils import get_openapi
 from app.db.schemas.title import TaskState
 from fastapi.middleware.cors import CORSMiddleware
 from app.logs import setup_logging
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 setup_logging()
 
@@ -15,6 +18,9 @@ app.include_router(titles.router)
 app.include_router(users.router)
 app.include_router(groups.router)
 app.include_router(models.router)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
