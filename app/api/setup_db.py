@@ -1,4 +1,5 @@
 import certifi
+import logging
 from fastapi.security import APIKeyHeader, HTTPBearer, OAuth2PasswordBearer
 from app.db.schemas.user import Maintains, Permission, User
 from pymongo import AsyncMongoClient
@@ -9,7 +10,7 @@ from app.deps import settings_db
 
 from app.db.schemas.user import Role
 
-
+logger = logging.getLogger(__name__)
 client: AsyncMongoClient | None = None
 bearer = HTTPBearer(auto_error=False)
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
@@ -61,7 +62,13 @@ async def create_admin(db):
     """
     existing_admin = await db.users.find_one({"role": "admin"})
     if existing_admin:
-        return
+        if existing_admin["email"] != os.getenv("ADMIN_EMAIL"):
+            logger.info(
+                f"Existing admin '{existing_admin['email']}' does not match admin env var, replacing admin user."
+            )
+            await db.users.delete_one({"_id": existing_admin["_id"]})
+        else:
+            return
 
     group_ids = await db.groups.distinct("_id")
     permissions = []
@@ -79,3 +86,4 @@ async def create_admin(db):
     user["password"] = password_hash.hash(user["password"])
 
     await db.users.insert_one(user)
+    logger.info(f"Admin user '{user['email']}' created with permissions for all groups.")
