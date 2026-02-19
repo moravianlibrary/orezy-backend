@@ -35,7 +35,6 @@ def main():
         response.raise_for_status()
         group_id = response.json()["id"]
         group_api_key = response.json()["api_key"]
-        title_id = "test-book-001"
 
         print(f"Created group with ID: {group_id} and API Key: {group_api_key}")
 
@@ -44,11 +43,18 @@ def main():
         response = requests.post(
             f"{API_URL}/integration/create?group_id={group_id}",
             json={
-                "external_id": title_id,
+                "filelist": [
+                    "tests/sample_input/1-a0001.jpg",
+                    "tests/sample_input/1-a0002.jpg",
+                    "tests/sample_input/1-a0003.jpg",
+                    "tests/sample_input/1-a0004.jpg",
+                    "tests/sample_input/1-a0005.jpg",
+                ],
             },
             headers=headers,
         )
         response.raise_for_status()
+        title_id = response.json()["id"]
 
         print("Created title using group API key.")
 
@@ -64,6 +70,37 @@ def main():
             print(f"Title status: {response['state']}")
         print("Title processing completed.")
 
+        # Update crop bounding box
+        response = requests.get(
+            f"{API_URL}/{title_id}/scans",
+            headers=headers,
+        )
+        response.raise_for_status()
+        response = response.json()
+        scan_ids = [scan["_id"] for scan in response["scans"]]
+        new_coordinates = []
+        for scan_id in scan_ids[:4]:
+            new_coordinates.append(
+                {
+                    "_id": scan_id,
+                    "pages": [
+                        {
+                            "xc": 0.5,
+                            "yc": 0.5,
+                            "width": 0.8,
+                            "height": 0.8,
+                        }
+                    ],
+                }
+            )
+
+        response = requests.patch(
+            f"{API_URL}/{title_id}/update-pages",
+            json=new_coordinates,
+            headers=bearer_headers,
+        )
+        response.raise_for_status()
+        print("Updated crop coordinates for all scans.")
         # Get coordinates
         response = requests.get(
             f"{API_URL}/integration/{title_id}/coordinates", headers=headers
@@ -76,6 +113,32 @@ def main():
             f"{API_URL}/integration/{title_id}/complete", headers=headers
         )
         response.raise_for_status()
+
+        assert response.json()["state"] == "retrain"
+        print("Marked title as completed")
+
+        # At last, recreate the title and check if it will get replaced
+        response = requests.post(
+            f"{API_URL}/integration/create?group_id={group_id}",
+            json={
+                "filelist": [],
+                "external_id": title_id,
+            },
+            headers=headers,
+        )
+        response.raise_for_status()
+        sleep(5)
+        response = requests.get(
+            f"{API_URL}/integration/{title_id}/coordinates",
+            headers=headers,
+        )
+        response.raise_for_status()
+        response = response.json()
+        assert len(response["pages"]) == 0
+        print(
+            "Successfully recreated title with same external_id, old scans were removed."
+        )
+
     except Exception as e:
         print(f"An error occurred during testing: {e}")
         response = requests.delete(
