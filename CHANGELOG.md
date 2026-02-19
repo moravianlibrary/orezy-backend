@@ -2,7 +2,7 @@
 
 ## Added
 
-The version introduces a user system. Every user now has their own account which gives them permissions to see specific groups. Groups contain titles. Admin user can manage the system by adding new groups or users. Authentication is possible to user account via username-password combination, or via API key for API requests.
+The version introduces a user system. Every user now has their own account which gives them permissions to see specific content. The new structure consists of groups and titles. Titles now belong to groups. User can gain access to title by gaining permission to the group. Users can be in multiple groups and have different permission in each one. Lastly, admin user manages the system by adding new groups, users and permissions. Authentication is possible to user account via username-password combination, or via API key for API requests.
 
 ## Changes
 
