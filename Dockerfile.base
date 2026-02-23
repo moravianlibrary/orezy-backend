@@ -1,35 +1,27 @@
 # stage 1: get mongodump from official mongo image
-FROM mongo:8.0 AS mongo_tools
+FROM mongo:8.2 AS mongo_tools
 
 # stage 2: your app image
-FROM ghcr.io/astral-sh/uv:python3.13-bookworm
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
 
 ENV UV_HTTP_TIMEOUT=60
-# Correct timezone for logging
-ENV TZ=Europe/Prague
 
-RUN apt-get update && \
-    apt-get install -y tzdata && \
-    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
-    echo $TZ > /etc/timezone && \
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl ca-certificates build-essential python3-opencv tzdata && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-
-COPY --from=mongo_tools /usr/bin/mongodump /usr/local/bin/mongodump
-RUN chmod +x /usr/local/bin/mongodump && mongodump --version
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl ca-certificates build-essential python3-opencv \
- && rm -rf /var/lib/apt/lists/*
+# Correct timezone
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
+    echo $TZ > /etc/timezone
 
 # Setup CA trust
 RUN curl -fsSL https://curl.se/ca/cacert.pem -o /usr/local/share/ca-certificates/cacert.pem \
  && update-ca-certificates
 
- # Copy dependencies
-COPY uv.lock* /src/
-COPY pyproject.toml /src/
+ WORKDIR /src
+ # Copy project dependencies
+COPY uv.lock* pyproject.toml ./
 
-WORKDIR /src
 # Sync the project into a new environment
-RUN uv sync --locked
+RUN uv sync --locked --no-dev && uv cache prune
