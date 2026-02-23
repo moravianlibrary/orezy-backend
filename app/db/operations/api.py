@@ -6,7 +6,7 @@ from bson import ObjectId
 from fastapi.encoders import jsonable_encoder
 
 from app.db.schemas.group import APIkey
-from app.db.schemas.user import Maintains, Permission, User
+from app.db.schemas.user import Maintains, Permission, Role, User
 
 UPLOAD_VOLUME_PATH = os.getenv("SCANS_VOLUME_PATH")
 RETRAIN_VOLUME_PATH = os.getenv("RETRAIN_VOLUME_PATH")
@@ -63,7 +63,7 @@ async def remove_users_from_group_bulk(
 async def get_users_in_group(group_id: ObjectId, db):
     """Get all users in a specific group."""
     users = await db.users.find(
-        {"permissions.group_id": group_id},
+        {"permissions.group_id": group_id, "role": Role.user},
     ).to_list(length=None)
 
     for user in users:

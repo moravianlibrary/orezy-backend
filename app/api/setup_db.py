@@ -1,3 +1,4 @@
+import shutil
 import certifi
 import logging
 from fastapi.security import APIKeyHeader, HTTPBearer, OAuth2PasswordBearer
@@ -37,6 +38,7 @@ async def lifespan(app):
     db = get_db()
     await create_indexes(db)
     await create_admin(db)
+    await copy_default_model()
 
     yield
     await client.close()
@@ -89,3 +91,11 @@ async def create_admin(db):
     logger.info(
         f"Admin user '{user['email']}' created with permissions for all groups."
     )
+
+async def copy_default_model():
+    """Copy default model to models volume if not already present."""
+    if "default.pt" not in os.listdir(os.environ["MODELS_VOLUME_PATH"]):
+        source = "models/crop-yolov10s-100e-mosaic-best.pt"
+        dest = os.path.join(os.environ["MODELS_VOLUME_PATH"], "default.pt")
+        shutil.copy(source, dest)
+        logger.info(f"Model not found, copied default model from '{source}' to '{dest}'")
