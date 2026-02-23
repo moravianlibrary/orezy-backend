@@ -3,9 +3,9 @@ FROM trinera/smart-crop-base:1.0.1-rc AS base
 # Copy source code
 COPY app /src/app/
 COPY models /src/models/
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Create a non-root user
 RUN useradd -m -u 1000 appuser
-RUN mkdir -p /upload_data && chown -R appuser:appuser /upload_data
-RUN mkdir -p /retrain_data && chown -R appuser:appuser /retrain_data
-USER appuser
+ENTRYPOINT ["/entrypoint.sh"]
