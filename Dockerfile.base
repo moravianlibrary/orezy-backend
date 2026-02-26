@@ -5,6 +5,7 @@ FROM mongo:8.2 AS mongo_tools
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
 
 ENV UV_HTTP_TIMEOUT=60
+ENV TZ=Europe/Prague
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \

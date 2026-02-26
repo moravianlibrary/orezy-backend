@@ -131,6 +131,11 @@ services:
 
   api:  # FastAPI backend
     image: trinera/smart-crop:1.0.0
+    build:
+      args:
+        - RETRAIN_VOLUME_PATH=${RETRAIN_VOLUME_PATH}
+        - MODELS_VOLUME_PATH=${MODELS_VOLUME_PATH}
+        - SCANS_VOLUME_PATH=${SCANS_VOLUME_PATH}
     depends_on:
       mongo-db:
         condition: service_started
@@ -164,6 +169,10 @@ services:
 
   worker:
     image: trinera/smart-crop:1.0.0
+    build:
+      args:
+        - RETRAIN_VOLUME_PATH=${RETRAIN_VOLUME_PATH}
+        - MODELS_VOLUME_PATH=${MODELS_VOLUME_PATH}
     depends_on:
       api:
         condition: service_started
