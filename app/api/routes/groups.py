@@ -57,7 +57,7 @@ async def list_groups(
         group.pop("title_ids", None)
 
     logger.info(
-        f"Listed groups for user ID {current_user['_id']}: {[str(group['_id']) for group in groups]}"
+        f"Listed groups for user ID {current_user.id}: {[str(group['_id']) for group in groups]}"
     )
     return jsonable_encoder(groups, custom_encoder={ObjectId: str})
 

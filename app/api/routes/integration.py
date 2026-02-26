@@ -41,7 +41,7 @@ async def create_title(group_id: str, title_data: TitleCreate, db=Depends(get_db
     title = await db.titles.find_one({"external_id": created_title.get("external_id")})
     if title and created_title.get("external_id"):
         logger.info(
-            f"Title with external_id {created_title['external_id']} already exists, removing it for rescan."
+            f"Title with external_id {created_title['external_id']} already exists, removing for rescan."
         )
         await db.titles.delete_one({"external_id": created_title["external_id"]})
         await db.groups.update_one(

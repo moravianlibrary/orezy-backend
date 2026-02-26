@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from prometheus_fastapi_instrumentator import Instrumentator
 from app.api import limiter
 from app.api.routes import groups, integration, titles, users, models
 from app.api.setup_db import lifespan
@@ -13,6 +14,7 @@ setup_logging()
 
 
 app = FastAPI(title="PageTrace API", lifespan=lifespan)
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 app.include_router(integration.router)
 app.include_router(titles.router)
 app.include_router(users.router)

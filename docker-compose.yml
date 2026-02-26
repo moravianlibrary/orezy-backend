@@ -12,8 +12,6 @@ services:
       - POSTGRES_USER=hatchet
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=hatchet
-    ports:
-      - "5435:5432"
     volumes:
       - hatchet_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -25,9 +23,6 @@ services:
   rabbitmq:
     image: "rabbitmq:3-management"
     hostname: "rabbitmq"
-    ports:
-      - "5673:5672" # RabbitMQ
-      - "15673:15672" # Management UI
     env_file:
       - .admin-user-env
     environment:
@@ -85,10 +80,6 @@ services:
         condition: service_completed_successfully
       migration:
         condition: service_completed_successfully
-    ports:
-      - "7070:7070"
-    expose:
-      - "7070"
     env_file:
       - .admin-user-env
     environment:
@@ -102,7 +93,7 @@ services:
     image: ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:latest
     command: sh ./entrypoint.sh --config /hatchet/config
     ports:
-      - 8080:80
+      - "127.0.0.1:8080:80"
     env_file:
       - .admin-user-env
     restart: on-failure
@@ -124,8 +115,6 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: autocrop-db-user
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASS}
-    ports:
-      - "27017:27017"
     volumes:
       - mongo_data:/data/db
 
@@ -141,7 +130,7 @@ services:
         condition: service_started
     command: uv run fastapi run --host 0.0.0.0 --port 8000
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     env_file:
       - .worker-env
       - .admin-user-env
