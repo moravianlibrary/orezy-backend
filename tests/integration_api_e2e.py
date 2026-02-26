@@ -95,7 +95,9 @@ def main():
             )
 
         response = requests.patch(
-            f"{API_URL}/{title_id}/update-pages", json=new_coordinates, headers=bearer_headers
+            f"{API_URL}/{title_id}/update-pages",
+            json=new_coordinates,
+            headers=bearer_headers,
         )
         response.raise_for_status()
         print("Updated crop coordinates for all scans.")
@@ -111,7 +113,7 @@ def main():
             f"{API_URL}/integration/{title_id}/complete", headers=headers
         )
         response.raise_for_status()
-        
+
         assert response.json()["state"] == "retrain"
         print("Marked title as completed")
 
@@ -133,8 +135,10 @@ def main():
         response.raise_for_status()
         response = response.json()
         assert len(response["pages"]) == 0
-        print("Successfully recreated title with same external_id, old scans were removed.")
-        
+        print(
+            "Successfully recreated title with same external_id, old scans were removed."
+        )
+
     except Exception as e:
         print(f"An error occurred during testing: {e}")
         response = requests.delete(

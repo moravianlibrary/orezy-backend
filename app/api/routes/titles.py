@@ -66,6 +66,9 @@ async def create_title(
         if title_dict["external_id"] is None:
             title_dict["external_id"] = str(title_dict["_id"])
         if title_dict["model"] is None:
+            logger.info(
+                f"No model specified for title, fetching default model from group settings for group ID: {group_id}"
+            )
             title_dict["model"] = (
                 await db.groups.find_one(
                     {"_id": ObjectId(group_id)}, {"default_model": 1}

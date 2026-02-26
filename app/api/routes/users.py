@@ -51,6 +51,8 @@ async def login_for_access_token(
         },
         expires_delta=access_token_expires,
     )
+
+    logger.debug(f"Generated access token for user ID: {user['id']}")
     return Token(access_token=access_token, token_type="bearer")
 
 
@@ -114,6 +116,7 @@ async def get_all_users(
             gid = p.get("group_id")
             p["group_name"] = group_name_by_id.get(gid)
 
+    logger.info(f"Fetched {len(users)} users with permissions for groups: {group_ids}")
     # users now contains permissions[*].group_name
     return jsonable_encoder(users, exclude=["password"], custom_encoder={ObjectId: str})
 
@@ -130,6 +133,7 @@ async def get_user(request: Request, user_id: str, db=Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
 
     user = await add_group_name_to_user_response(User(**user), db)
+    logger.info(f"Fetched user details for user ID: {user.id}")
     return jsonable_encoder(user, exclude=["password"], custom_encoder={ObjectId: str})
 
 
@@ -148,10 +152,12 @@ async def register_user(request: Request, user: UserCreate, db=Depends(get_db)):
 
         inserted_user = await db.users.insert_one(doc)
     except Exception as e:
+        logger.error(f"Failed to register user: {e}")
         raise HTTPException(
             status_code=400,
             detail=e.__class__.__name__,
         )
+    logger.info(f"Registered new user with ID: {inserted_user.inserted_id}")
     return {
         "id": str(inserted_user.inserted_id),
         "password": unhashed_password,
@@ -187,10 +193,12 @@ async def update_user(
         updated_user = await db.users.find_one({"_id": ObjectId(user_id)})
         updated_user = await add_group_name_to_user_response(User(**updated_user), db)
     except Exception as e:
+        logger.error(f"Failed to update user ID {user_id}: {e}")
         raise HTTPException(
             status_code=400,
             detail=e.__class__.__name__,
         )
+    logger.info(f"Updated user ID {user_id}, new data: {update_data}")
     return jsonable_encoder(updated_user, custom_encoder={ObjectId: str})
 
 
@@ -220,6 +228,7 @@ async def reset_password(
         {"$set": {"password": hashed_password, "modified_at": datetime.now()}},
     )
 
+    logger.info(f"Reset password for user ID {user_id}")
     return {"detail": "Password reset successfully", "new_password": new_password}
 
 
@@ -248,4 +257,5 @@ async def delete_user(
             detail="Cannot delete self",
         )
     await db.users.delete_one({"_id": ObjectId(user_id)})
+    logger.info(f"Deleted user ID {user_id}")
     return {"detail": "User deleted"}

@@ -52,6 +52,7 @@ def get_db():
 
 async def create_indexes(db):
     """Create necessary indexes in the database."""
+    logger.info("Creating database indexes...")
     await db.groups.create_index([("name", 1)], unique=True, name="unique_group_name")
     await db.users.create_index([("email", 1)], unique=True, name="unique_user_email")
     await db.users.create_index([("role", 1)], name="role_index")
@@ -92,10 +93,13 @@ async def create_admin(db):
         f"Admin user '{user['email']}' created with permissions for all groups."
     )
 
+
 async def copy_default_model():
     """Copy default model to models volume if not already present."""
     if "default.pt" not in os.listdir(os.environ["MODELS_VOLUME_PATH"]):
         source = "models/crop-yolov10s-100e-mosaic-best.pt"
         dest = os.path.join(os.environ["MODELS_VOLUME_PATH"], "default.pt")
         shutil.copy(source, dest)
-        logger.info(f"Model not found, copied default model from '{source}' to '{dest}'")
+        logger.info(
+            f"Model not found, copied default model from '{source}' to '{dest}'"
+        )

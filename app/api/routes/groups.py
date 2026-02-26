@@ -56,6 +56,9 @@ async def list_groups(
         group["title_count"] = len(group["title_ids"])
         group.pop("title_ids", None)
 
+    logger.info(
+        f"Listed groups for user ID {current_user['_id']}: {[str(group['_id']) for group in groups]}"
+    )
     return jsonable_encoder(groups, custom_encoder={ObjectId: str})
 
 
@@ -101,6 +104,7 @@ async def get_titles(request: Request, group_id: str, db=Depends(get_db)):
     titles = sorted(titles, key=lambda x: x["created_at"], reverse=True)
 
     group["titles"] = titles
+    logger.info(f"Fetched {len(titles)} titles for group ID {group_id}")
     return jsonable_encoder(
         group, custom_encoder={ObjectId: str}, exclude=["title_ids", "api_key"]
     )
@@ -134,6 +138,9 @@ async def create_group(
         {"$push": {"permissions": new_permission}},
     )
 
+    logger.info(
+        f"Created group '{group['name']}' with ID {result.inserted_id} and added {len(admin_users)} admin users to it"
+    )
     return {"id": str(result.inserted_id), "api_key": group["api_key"]["key"]}
 
 
@@ -181,6 +188,7 @@ async def bulk_add_group_members(
             {"$push": {"permissions": new_permission}},
         )
 
+    logger.info(f"Added {len(permission_requests)} members to group ID {group_id}")
     return {"detail": "Group members added"}
 
 
@@ -242,6 +250,9 @@ async def bulk_update_group_members(
             },
         )
 
+    logger.info(
+        f"Updated permissions for {len(permission_requests)} members in group ID {group_id}"
+    )
     return {"detail": "Group members updated"}
 
 
@@ -279,6 +290,7 @@ async def bulk_remove_group_members(
         },
     )
 
+    logger.info(f"Removed {len(user_ids)} members from group ID {group_id}")
     return {"detail": "Group members removed"}
 
 
@@ -315,6 +327,7 @@ async def update_group(
             {"$set": update_data},
         )
 
+    logger.info(f"Updated group ID {group_id} with data: {update_data}")
     return {"detail": "Group updated"}
 
 
@@ -346,7 +359,7 @@ async def delete_group(request: Request, group_id: str, db=Depends(get_db)):
 
     # Remove group
     await db.groups.delete_one({"_id": ObjectId(group_id)})
-
+    logger.info(f"Deleted group ID {group_id} and its {len(titles)} titles")
     return {"detail": "Group deleted"}
 
 
@@ -373,4 +386,5 @@ async def revoke_group_api_key(
         {"$set": {"api_key": new_api_key.model_dump(by_alias=True)}},
     )
 
+    logger.info(f"Revoked API key for group ID {group_id} and generated a new one")
     return jsonable_encoder(new_api_key, custom_encoder={ObjectId: str})

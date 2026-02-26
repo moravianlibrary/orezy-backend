@@ -23,6 +23,7 @@ async def list_models():
     # remove .pt extension
     models = [model[:-3] for model in models if model.endswith(".pt")]
     models_sorted = [models.pop(models.index("default"))] + sorted(models)
+    logger.info(f"Listed {len(models_sorted)} models: {models_sorted}")
     return {"available_models": models_sorted}
 
 
@@ -34,6 +35,7 @@ async def upload_model(file: UploadFile):
     model_path = os.path.join(os.environ.get("MODELS_VOLUME_PATH"), file.filename)
     with open(model_path, "wb") as f:
         f.write(await file.read())
+    logger.info(f"Uploaded model: {file.filename}")
     return {"filename": file.filename}
 
 
@@ -43,4 +45,5 @@ async def delete_model(model_name: str):
     if not os.path.exists(model_path):
         raise HTTPException(404, "Model not found")
     os.remove(model_path)
+    logger.info(f"Deleted model: {model_name}")
     return {"detail": "Model deleted"}
