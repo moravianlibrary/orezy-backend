@@ -7,7 +7,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, Upload
 from fastapi.encoders import jsonable_encoder
 from app.api.limiter import limiter
 from app.api.authn import get_current_user
-from app.api.authz import from_group_id, from_title_id, require_group_permission
+from app.api.authz import (
+    from_group_id,
+    from_title_id,
+    require_group_permission,
+    require_task_state,
+)
 from app.api.setup_db import get_db
 from app.api.utils import (
     format_page_data_list,
@@ -102,7 +107,10 @@ async def create_title(
     dependencies=[
         Depends(
             require_group_permission(Permission.upload, group_id_provider=from_title_id)
-        )
+        ),
+        Depends(
+            require_task_state([TaskState.new]),
+        ),
     ],
 )
 async def upload_scan(
@@ -117,16 +125,6 @@ async def upload_scan(
     Returns:
         dict: Title ID and filename of the uploaded scan.
     """
-    if not ObjectId.is_valid(title_id):
-        raise HTTPException(400, f"ID '{title_id}' is not a valid ObjectId")
-
-    current_state = await get_title_state(title_id, db)
-    if current_state != TaskState.new:
-        raise HTTPException(
-            400,
-            f"Title is not in a valid state for uploading scans (new), current state: {current_state}",
-        )
-
     content = await scan_data.read()
     # Convert to JPEG
     media_type = sniff_media_type(content[:16])
@@ -161,7 +159,10 @@ async def upload_scan(
     dependencies=[
         Depends(
             require_group_permission(Permission.upload, group_id_provider=from_title_id)
-        )
+        ),
+        Depends(
+            require_task_state([TaskState.new]),
+        ),
     ],
 )
 async def process_title(request: Request, title_id: str, db=Depends(get_db)):
@@ -170,15 +171,6 @@ async def process_title(request: Request, title_id: str, db=Depends(get_db)):
     Returns:
         dict: Title ID and new state.
     """
-    if not ObjectId.is_valid(title_id):
-        raise HTTPException(400, f"ID '{title_id}' is not a valid ObjectId")
-
-    current_state = await get_title_state(title_id, db)
-    if current_state != TaskState.new:
-        raise HTTPException(
-            400,
-            f"Title is not in a valid state for processing (new), current state: {current_state}",
-        )
     logger.info(f"Scheduling workflow for title ID: {title_id}")
     title = await db.titles.find_one({"_id": ObjectId(title_id)})
 
@@ -213,13 +205,7 @@ async def get_title_state(title_id: str, db=Depends(get_db)):
     Returns:
         str: Current state of the title.
     """
-    if not ObjectId.is_valid(title_id):
-        raise HTTPException(400, f"ID '{title_id}' is not a valid ObjectId")
-
     title = await db.titles.find_one({"_id": ObjectId(title_id)})
-    if not title:
-        raise HTTPException(404, "Title not found")
-
     return title.get("state")
 
 
@@ -239,9 +225,6 @@ async def get_scans(title_id: str, scan_id: str | None = None, db=Depends(get_db
     Returns:
         list: List of scans with page crop instructions.
     """
-    if not ObjectId.is_valid(title_id):
-        raise HTTPException(400, f"ID '{title_id}' is not a valid ObjectId")
-
     if scan_id:
         title = await db.titles.find_one(
             {"scans._id": ObjectId(scan_id), "_id": ObjectId(title_id)},
@@ -249,8 +232,6 @@ async def get_scans(title_id: str, scan_id: str | None = None, db=Depends(get_db
         )
     else:
         title = await db.titles.find_one({"_id": ObjectId(title_id)})
-    if not title:
-        raise HTTPException(404, "Title not found")
 
     scans = [Scan(**scan) for scan in title.get("scans", [])]
     scans = sorted(scans, key=lambda s: s.filename)
@@ -281,12 +262,7 @@ async def get_predicted_pages(request: Request, title_id: str, db=Depends(get_db
     Returns:
         list: List of scans with predicted page crop instructions.
     """
-    if not ObjectId.is_valid(title_id):
-        raise HTTPException(400, f"ID '{title_id}' is not a valid ObjectId")
-
     title = await db.titles.find_one({"_id": ObjectId(title_id)})
-    if not title:
-        raise HTTPException(404, "Title not found")
 
     scans = [Scan(**scan) for scan in title.get("scans", [])]
     scans = sorted(scans, key=lambda s: s.filename)
@@ -321,9 +297,6 @@ async def get_scanfile(
     Returns:
         Response: Image file response.
     """
-    if not ObjectId.is_valid(title_id):
-        raise HTTPException(400, f"ID '{title_id}' is not a valid ObjectId")
-
     scan = await db.titles.find_one(
         {"scans._id": ObjectId(scan_id), "_id": ObjectId(title_id)},
         {"scans": {"$elemMatch": {"_id": ObjectId(scan_id)}}},
@@ -366,9 +339,6 @@ async def get_thumbnail(
     Returns:
         list: List of thumbnail image responses.
     """
-    if not ObjectId.is_valid(title_id):
-        raise HTTPException(400, f"ID '{title_id}' is not a valid ObjectId")
-
     scan = await db.titles.find_one(
         {"scans._id": ObjectId(scan_id), "_id": ObjectId(title_id)},
         {"scans": {"$elemMatch": {"_id": ObjectId(scan_id)}}},
@@ -387,7 +357,8 @@ async def get_thumbnail(
     dependencies=[
         Depends(
             require_group_permission(Permission.write, group_id_provider=from_title_id)
-        )
+        ),
+        Depends(require_task_state([TaskState.ready, TaskState.user_approved])),
     ],
 )
 async def update_pages(
@@ -403,15 +374,6 @@ async def update_pages(
         dict: Title ID.
     """
     logger.info(f"Updating pages for title ID: {title_id}")
-    if not ObjectId.is_valid(title_id):
-        raise HTTPException(400, f"ID '{title_id}' is not a valid ObjectId")
-
-    current_state = await get_title_state(title_id, db)
-    if current_state not in [TaskState.ready, TaskState.user_approved]:
-        raise HTTPException(
-            400, f"Title is not in a valid state, current state: {current_state}"
-        )
-
     for scan in scans:
         pages = [page.model_dump(by_alias=True) for page in scan.pages]
 
@@ -454,12 +416,7 @@ async def update_pages(
 )
 async def delete_title(request: Request, title_id: str, db=Depends(get_db)):
     """Deletes a title and all associated saved files."""
-    if not ObjectId.is_valid(title_id):
-        raise HTTPException(400, f"ID '{title_id}' is not a valid ObjectId")
-
     title = await db.titles.find_one({"_id": ObjectId(title_id)})
-    if not title:
-        raise HTTPException(404, "Title not found")
 
     # Delete from group
     await db.groups.update_one(
@@ -495,9 +452,6 @@ async def reset_predictions(
 
     Returns:
         list: List of scans with predicted page crop instructions."""
-    if not ObjectId.is_valid(title_id):
-        raise HTTPException(400, f"ID '{title_id}' is not a valid ObjectId")
-
     logger.info(f"Resetting predictions for title ID: {title_id}")
     result = await db.titles.update_one(
         {"_id": ObjectId(title_id)},

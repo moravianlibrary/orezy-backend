@@ -65,6 +65,9 @@ class GroupGuard:
 
 async def from_title_id(title_id: str, db=Depends(get_db)):
     """Group id provider: Fetch group ID from title ID."""
+    if not ObjectId.is_valid(title_id):
+        raise HTTPException(400, f"ID '{title_id}' is not a valid ObjectId")
+
     title = await db.titles.find_one({"_id": ObjectId(title_id)})
     if not title or "group_id" not in title:
         raise HTTPException(404, "Title not found")
@@ -127,4 +130,45 @@ def require_role(required_role: Role):
     ) -> User:
         return guard(user=user)
 
+    return dep
+
+
+def require_task_state(required_states: list[str], external_id_provider=False):
+    """Dependency to check if a title is in one of the required states.
+    Args:
+        required_states (list[str]): List of allowed states (e.g., ["ready", "user_approved"]).
+        id_provider: The name of the field to use as the title ID (default is "_id").
+
+    Returns:
+        A dependency that raises HTTPException if the title is not in an allowed state.
+    """
+
+    async def dep(
+        title_id: str,
+        db=Depends(get_db),
+    ) -> str:
+        current_title = await db.titles.find_one({"_id": ObjectId(title_id)})
+        current_state = current_title["state"]
+        if current_state not in required_states:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Title state '{current_state}' does not allow this operation",
+            )
+        return current_state
+
+    async def external_dep(
+        external_id: str,
+        db=Depends(get_db),
+    ) -> str:
+        current_title = await db.titles.find_one({"external_id": external_id})
+        current_state = current_title["state"]
+        if current_state not in required_states:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Title state '{current_state}' does not allow this operation",
+            )
+        return current_state
+
+    if external_id_provider:
+        return external_dep
     return dep

@@ -149,7 +149,7 @@ async def auth_via_api_key(
     expected = await db.groups.find_one(
         {"api_key.key": raw_key}, {"api_key.$": 1, "_id": 1}
     )
-    logger.info(f"API Key access attempt for key: {raw_key}")
+    logger.info(f"API Key access attempt for key: {raw_key[:5]}***")
     # Check if API key exists
     if not expected:
         raise HTTPException(

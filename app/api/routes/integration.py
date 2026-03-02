@@ -5,7 +5,12 @@ from urllib.parse import urljoin
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException
 import grpc
-from app.api.authz import from_group_id, from_external_id, require_group_permission
+from app.api.authz import (
+    from_group_id,
+    from_external_id,
+    require_group_permission,
+    require_task_state,
+)
 from app.api.setup_db import get_db
 from app.api.utils import (
     copy_images_for_retraining,
@@ -117,18 +122,17 @@ async def get_title_state(external_id: str, db=Depends(get_db)):
             require_group_permission(
                 Permission.upload, group_id_provider=from_external_id
             )
-        )
+        ),
+        Depends(
+            require_task_state(
+                [TaskState.ready, TaskState.user_approved], external_id_provider=True
+            )
+        ),
     ],
 )
 async def open_webapp(external_id: str, db=Depends(get_db)):
     """Opens web editor with predicted pages for the given title."""
     title = await db.titles.find_one({"external_id": external_id})
-    if not title:
-        raise HTTPException(404, "Title not found")
-    if title.get("state") not in [TaskState.ready, TaskState.user_approved]:
-        raise HTTPException(
-            400, f"Title is not in a ready state, current state: {title.get('state')}"
-        )
     url = urljoin(WEBAPP_URL, f"book/{title['_id']}")
     logger.info(f"Redirecting to {url}")
 
@@ -149,9 +153,6 @@ async def get_coordinates(external_id: str, db=Depends(get_db)):
     """Get crop instructions for all pages."""
     title = await db.titles.find_one({"external_id": external_id})
 
-    if not title:
-        raise HTTPException(404, "Title not found")
-
     scans = [Scan(**scan) for scan in title.get("scans", [])]
     pages = format_page_data_flat(scans)
 
@@ -169,21 +170,17 @@ async def get_coordinates(external_id: str, db=Depends(get_db)):
             require_group_permission(
                 Permission.upload, group_id_provider=from_external_id
             )
-        )
+        ),
+        Depends(
+            require_task_state(
+                [TaskState.ready, TaskState.user_approved], external_id_provider=True
+            )
+        ),
     ],
 )
 async def mark_completed(external_id: str, db=Depends(get_db)):
     """Mark a title as completed."""
     title = await db.titles.find_one({"external_id": external_id})
-    if not title:
-        raise HTTPException(404, "Title not found")
-
-    current_state = title.get("state")
-    if current_state not in [TaskState.ready, TaskState.user_approved]:
-        raise HTTPException(
-            400,
-            f"Title is not in an acceptable state (ready, approved), current state: {current_state}",
-        )
 
     # Check number of errors from the coordinate prediction model
     scans = [Scan(**scan) for scan in title.get("scans", [])]
