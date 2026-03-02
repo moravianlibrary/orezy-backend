@@ -107,6 +107,15 @@ def main():
         )
         response.raise_for_status()
         print(f"Coordinates for title {title_id}: {response.json()}")
+        assert response.json()["pages"][0] == {
+            "filename": "tests/sample_input/1-a0001.jpg",
+            "xc": 0.5,
+            "yc": 0.5,
+            "width": 0.8,
+            "height": 0.8,
+            "angle": 0.0,
+            "type": "single",
+        }
 
         # Cleanup
         response = requests.post(
@@ -115,6 +124,14 @@ def main():
         response.raise_for_status()
 
         assert response.json()["state"] == "retrain"
+        files = os.listdir(f"{os.environ['RETRAIN_VOLUME_PATH']}/{title_id}")
+        assert set(files) == {
+            "1-a0001.jpg",
+            "1-a0002.jpg",
+            "1-a0003.jpg",
+            "1-a0004.jpg",
+            "1-a0005.jpg",
+        }
         print("Marked title as completed")
 
         # At last, recreate the title and check if it will get replaced
