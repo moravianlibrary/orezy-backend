@@ -17,7 +17,7 @@ The version introduces a user system. Every user now has their own account which
 - Added new user system with groups, roles, and permissions. Before accessing the web editor, the user is now prompted to login and authentitate via JWT.
 - All titles belong to a specific group. User can have 4 permissions in the group: **read-title** (can open web editor for titles in a group), **read-group** (can open list of titles belonging to a group), **write** (can save changes in the editor), **upload** (can upload new titles to a group). Permissions are set by administator.
 - Administrator is a new role which is able to access every endpoint. Admins can create or delete groups, add users to groups, create new users. Admin has automatically every permission in all groups.
-- During deployment, a default admin user will be created based on environment variables. New admin will be recreated if email variable changes.
+- During deployment, a default admin user will be created based on environment variables (`ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_NAME`). New admin will be recreated if email variable changes.
 - Removed static `WEBAPP_TOKEN` variable, the token is replaced with group-based API keys.
 - API key is automatically created per group and can be utilized by adding a header (`{"X-API-Key": YOUR-API-KEY}`) to the requests. The key allows to send API requests for operations related to the group. Key is accessible only by administrator which can also revoke and manage them.
 - All endpoints return 403 when an unauthorized request is attempted.
@@ -49,7 +49,11 @@ db.titles.updateMany(
 
 ### Models
 - Users can now select from multiple crop models when creating new title.
-- Models are stored on a separate volume.
+- Models are stored on a **separate** volume (`models:` in docker compose).
+- A default model is added onto the volume during the first deploy.
+
+### Monitoring
+- Enabled Prometheus exporting for API, metrics are available via API at `/metrics`. A sample prometheus exporter config can be found under `deploy/`.
 
 # 1.0.0 - 2025-10-12
 
