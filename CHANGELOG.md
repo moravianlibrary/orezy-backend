@@ -1,4 +1,4 @@
-# 1.0.1 - 2026-xx-02
+# 1.0.1 - 2026-xx-xx
 
 ## Added
 
@@ -9,9 +9,9 @@ The version introduces a user system. Every user now has their own account which
 ### API
 - Created endpoints for `users`, `groups` and `models`.
 - Renamed `/ndk` endpoints to `/integration`.
-- Updated `/integration/create` endpoint: new titles must be added into a group, optional parameters (crop_type_code, page_count...) are now accepted in `metadata{*}` parameter.
+- Updated `/integration/create` endpoint: new titles must be added into a group (`/integration/create?group_id=ID`), optional parameters (crop_type_code, page_count...) are now accepted in `metadata{*}` parameter.
 - Updated all title `create` endpoints: `crop_method` was renamed to `model`, list of available models is now under `/models` endpoint. When not filled, result falls back to default model of the group.
-- Reworked authorization (see bellow).
+- Reworked authorization (see below).
 
 ### Security
 - Added new user system with groups, roles, and permissions. Before accessing the web editor, the user is now prompted to login and authentitate via JWT.
@@ -59,24 +59,24 @@ db.titles.updateMany(
 
 The initial release includes core application functionality. User can upload a set of scans for which the application predicts crop coordinates. User is then able to review and edit the predictions in a web app, save the changes and get the crop instructions in a JSON format. The app architecture consists of task queue, API, database, and 2 pretrained models.
 
-## Hatchet task queue
+### Hatchet task queue
 
 Task queue has these workflows:
 - `autocrop` Main processing workflow which (in 3 steps) predicts position and rotation of page bounding boxes
 in a title.
 - `maintenance` A cron job scheduled for 2 AM every night, saves a copy of the current state of database to disk.
 
-## API
+### API
 
 A RestAPI interface providing endpoints for:
 - `/ndk` endpoints for API integration
 - `/titles` endpoints for frontend web editor
 
-## Database
+### Database
 
 - A NoSQL MongoDB database with Titles collection. Stores crop predictions and edits. Export of this collection
 serves as instructions for scan crop softwares.
 
-## Models
+### Models
 
 - Models are utilized by Hatchet workers. First model predicts the number and position of bounding boxes, second one predicts their rotation.
