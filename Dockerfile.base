@@ -1,5 +1,15 @@
-# stage 1: get mongodump from official mongo image
-FROM mongo:8.2 AS mongo_tools
+# stage 1: build mongodump with patched Go
+FROM golang:1.26.0 AS mongo_tools
+ARG MONGO_TOOLS_TAG=100.14.1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git ca-certificates build-essential \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN git clone --depth 1 --branch ${MONGO_TOOLS_TAG} https://github.com/mongodb/mongo-tools /src
+WORKDIR /src
+# Build only mongodump
+RUN ./make build -pkgs=mongodump
 
 # stage 2: your app image
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
@@ -9,8 +19,11 @@ ENV TZ=Europe/Prague
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl ca-certificates build-essential python3-opencv tzdata gosu && \
+    curl ca-certificates build-essential python3-opencv tzdata && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
+
+COPY --from=mongo_tools /src/bin/mongodump /usr/local/bin/mongodump
+RUN chmod +x /usr/local/bin/mongodump && mongodump --version
 
 # Correct timezone
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
@@ -26,3 +39,6 @@ COPY uv.lock* pyproject.toml ./
 
 # Sync the project into a new environment
 RUN uv sync --locked --no-dev && uv cache prune
+
+RUN useradd -m -u 1000 appuser
+USER appuser
