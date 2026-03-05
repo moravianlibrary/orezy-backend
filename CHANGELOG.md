@@ -1,4 +1,4 @@
-# 1.0.1 - 2026-xx-xx
+# 1.0.1 - 2026-04-03
 
 ## Added
 
@@ -54,6 +54,14 @@ db.titles.updateMany(
 
 ### Monitoring
 - Enabled Prometheus exporting for API, metrics are available via API at `/metrics`. A sample prometheus exporter config can be found under `deploy/`.
+
+### Deployment change summary
+- Added a new environment variable `PWD_SECRET` used for signing JWT (we recommend to generate secret with length 256).
+- Added variables for creating an admin user `ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_NAME`.
+- Removed static `WEBAPP_TOKEN` variable, the token is replaced with group-based API keys.
+- Added PVC for models/
+- Added required build arguments `RETRAIN_VOLUME_PATH, MODELS_VOLUME_PATH, SCANS_VOLUME_PATH` (they were previously used only as env. variables).
+- Renamed frontend image to trinera/cropilot-frontend.
 
 # 1.0.0 - 2025-10-12
 

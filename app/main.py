@@ -13,7 +13,7 @@ from slowapi.errors import RateLimitExceeded
 setup_logging()
 
 
-app = FastAPI(title="PageTrace API", lifespan=lifespan)
+app = FastAPI(title="Cropilot API", lifespan=lifespan)
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 app.include_router(integration.router)
 app.include_router(titles.router)
@@ -37,7 +37,7 @@ def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
     openapi_schema = get_openapi(
-        title="PageTrace API",
+        title="Cropilot API",
         version="1.0.1",
         routes=app.routes,
     )
