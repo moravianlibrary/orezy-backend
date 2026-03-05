@@ -19,6 +19,7 @@ def format_page_data_flat(scans: list[Scan]) -> list[dict]:
             if scan.user_edited_pages is not None
             else scan.predicted_pages
         )
+        pages = sorted(pages, key=lambda p: p.xc)  # left first
 
         if len(pages) == 2:
             page_types = ["left", "right"]

@@ -10,7 +10,7 @@ class APIkey(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
     @staticmethod
-    def create_api_key(length: int = 64) -> str:
+    def create_api_key(length: int = 48) -> str:
         alphabet = string.ascii_letters + string.digits
         secret = "".join(secrets.choice(alphabet) for _ in range(length))
         return "-".join(secret[i : i + 8] for i in range(0, len(secret), 8))

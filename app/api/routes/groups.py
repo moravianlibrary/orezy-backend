@@ -125,8 +125,23 @@ async def create_group(
             detail=f"Model '{group.default_model}' does not exist",
         )
 
-    group = Group(**group.model_dump()).model_dump(by_alias=True)
-    result = await db.groups.insert_one(group)
+    try:
+        group = Group(**group.model_dump()).model_dump(by_alias=True)
+        result = await db.groups.insert_one(group)
+    except Exception as e:
+        if "duplicate key error" in str(e).lower():
+            logger.warning(
+                f"Attempt to create duplicate group with name '{group['name']}'"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Group with name '{group['name']}' already exists",
+            )
+        logger.error(f"Failed to create group: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create group",
+        )
 
     # Add admins to group
     admin_users = await db.users.find({"role": Role.admin.value}).to_list(length=None)
