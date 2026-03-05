@@ -1,4 +1,4 @@
-name: crop-app-backend
+name: cropilot-app
 
 services:
   postgres:
@@ -26,7 +26,7 @@ services:
     env_file:
       - .admin-user-env
     environment:
-      RABBITMQ_DEFAULT_USER: "user-ar1HnF5kQrBNlFCG"
+      RABBITMQ_DEFAULT_USER: "autocrop-rabbitmq-user"
       RABBITMQ_DEFAULT_PASS: "${RABBITMQ_DEFAULT_PASS}"
     volumes:
       - "hatchet_rabbitmq_data:/var/lib/rabbitmq"
@@ -138,7 +138,7 @@ services:
       WEBAPP_FRONTEND_URL: "http://localhost:1234"
       ENABLE_TLS: false
       MONGODB_URI: ${MONGODB_URI}
-      MONGODB_DB: mydb
+      MONGODB_DB: database_name
       SCANS_VOLUME_PATH: /upload_data
       RETRAIN_VOLUME_PATH: /retrain_data
       MODELS_VOLUME_PATH: /models
