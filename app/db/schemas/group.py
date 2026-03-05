@@ -10,7 +10,7 @@ class APIkey(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
     @staticmethod
-    def create_api_key(length: int = 32) -> str:
+    def create_api_key(length: int = 48) -> str:
         alphabet = string.ascii_letters + string.digits
         secret = "".join(secrets.choice(alphabet) for _ in range(length))
         return "-".join(secret[i : i + 8] for i in range(0, len(secret), 8))
@@ -23,11 +23,13 @@ class Group(BaseModelWithId):
     created_at: datetime = Field(default_factory=datetime.now)
     modified_at: datetime = Field(default_factory=datetime.now)
     api_key: APIkey = Field(default_factory=lambda: APIkey())
+    default_model: str
 
 
 class GroupCreate(BaseModel):
     name: str
     description: str | None = None
+    default_model: str = "default"
 
 
 class GroupUpdate(BaseModel):
@@ -35,3 +37,4 @@ class GroupUpdate(BaseModel):
 
     name: str | None = None
     description: str | None = None
+    default_model: str | None = None

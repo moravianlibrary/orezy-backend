@@ -20,7 +20,7 @@ from app.core.anomalies import (
     flag_prediction_errors,
     flag_prediction_overlaps,
 )
-from app.core.yolo_crop.crop_model import crop_images_inner, crop_images_outer
+from app.core.yolo_crop.crop_model import crop_images
 from app.tasks.hatchet_client import hatchet
 from app.deps import settings_db
 
@@ -60,10 +60,7 @@ def crop(input: Title, ctx: Context):
     ctx.log(f"Starting crop with input: {input}")
     db_update_task_state(input.id, TaskState.in_progress, _ensure_db())
 
-    if input.crop_method == "inner":
-        result = crop_images_inner(input.filelist)
-    else:
-        result = crop_images_outer(input.filelist)
+    result = crop_images(input.filelist, input.model)
 
     # Serialize Pydantic objects
     result = [r.model_dump(by_alias=True) for r in result]
@@ -99,7 +96,6 @@ def detect_anomalies(input: EmptyModel, ctx: Context):
     db_update_task_state(title_id, TaskState.ready, _ensure_db())
 
     # Serialize Pydantic objects
-    # scans_with_anomalies = [scan for scan in result if any(scan.flags)]
     ctx.log(f"Detected {len(result)} scans with anomalies")
 
     scans_with_anomalies = [r.model_dump(by_alias=True) for r in result]

@@ -35,6 +35,7 @@ class User(BaseModelWithId):
     role: Role = Role.user
     permissions: list[Maintains] = Field(default_factory=list)
     password: str = Field(default_factory=lambda: User.create_random_password())
+    modified_at: datetime = Field(default_factory=datetime.now)
 
     @field_validator("email")
     def validate_email(cls, v: str) -> str:
@@ -44,15 +45,15 @@ class User(BaseModelWithId):
         return v.lower()
 
     @staticmethod
-    def create_random_password(length: int = 16) -> str:
+    def create_random_password(length: int = 20) -> str:
         """Generate a secure random password.
 
         Args:
-            length (int): Length of the generated password. Default is 16.
+            length (int): Length of the generated password. Default is 20.
         Returns:
             str: The generated password.
         """
-        alphabet = string.ascii_letters + string.digits + string.punctuation
+        alphabet = string.ascii_letters + string.digits + "!#$^&*"
         return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
@@ -64,6 +65,12 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
+    email: str | None = None
     full_name: str | None = None
     role: Role | None = None
     permissions: list[Maintains] | None = None
+
+
+class PermissionRequest(BaseModel):
+    user_id: str
+    user_permissions: list[Permission]

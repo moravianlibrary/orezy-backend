@@ -1,10 +1,8 @@
 from datetime import datetime, timedelta, timezone
-import os
 import secrets
 import logging
 from typing import Annotated, Optional
 
-from fastapi.security import HTTPAuthorizationCredentials
 import jwt
 from fastapi import Depends, HTTPException, Security, status
 from app.api.setup_db import (
@@ -12,7 +10,6 @@ from app.api.setup_db import (
     password_hash,
     oauth2_scheme,
     api_key_header,
-    bearer,
 )
 from app.deps import settings_api
 from pydantic import BaseModel
@@ -25,22 +22,6 @@ logger = logging.getLogger(__name__)
 class Token(BaseModel):
     access_token: str
     token_type: str
-
-
-def require_token(credentials: HTTPAuthorizationCredentials = Depends(bearer)):
-    """Dependency to require a valid API key for static authentication (NDK)."""
-    if credentials is None or not credentials.scheme.lower() == "bearer":
-        # Force browsers/clients to prompt correctly:
-        raise HTTPException(
-            status_code=401,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "API Key"},
-        )
-    token = credentials.credentials
-
-    if not secrets.compare_digest(token, os.getenv("WEBAPP_TOKEN")):
-        raise HTTPException(status_code=401, detail="Invalid token")
-    return {"token": token}
 
 
 def verify_password(plain_password, hashed_password):
@@ -135,7 +116,12 @@ async def get_current_user(
                 "email": "api@request.user",
                 "full_name": "API request",
                 "role": "user",
-                "permissions": [{"group_id": group_id, "permission": ["upload", "read_title"]}],
+                "permissions": [
+                    {
+                        "group_id": group_id,
+                        "permission": ["upload", "read_title", "read_group"],
+                    },
+                ],
             }
         return User(**user)
     except Exception:
@@ -163,7 +149,7 @@ async def auth_via_api_key(
     expected = await db.groups.find_one(
         {"api_key.key": raw_key}, {"api_key.$": 1, "_id": 1}
     )
-    logger.info(f"API Key access attempt for key: {raw_key}")
+    logger.info(f"API Key access attempt for key: {raw_key[:5]}***")
     # Check if API key exists
     if not expected:
         raise HTTPException(

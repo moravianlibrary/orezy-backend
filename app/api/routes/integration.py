@@ -2,10 +2,16 @@ from datetime import datetime
 import logging
 import os
 from urllib.parse import urljoin
+from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException
 import grpc
+from app.api.authz import (
+    from_group_id,
+    from_external_id,
+    require_group_permission,
+    require_task_state,
+)
 from app.api.setup_db import get_db
-from app.api.authn import require_token
 from app.api.utils import (
     copy_images_for_retraining,
     format_page_data_flat,
@@ -15,23 +21,33 @@ from app.db.operations.api import link_titles_to_group_bulk
 from app.db.schemas.title import Scan, TaskState, Title, TitleCreate
 from starlette.responses import RedirectResponse
 from pymongo.errors import DuplicateKeyError
+from app.db.schemas.user import Permission
 from app.tasks.workflows.smartcrop_workflow import autocrop_workflow
 
-router = APIRouter(prefix="/ndk", tags=["NDK"], dependencies=[Depends(require_token)])
+router = APIRouter(prefix="/integration", tags=["Integration"])
 logger = logging.getLogger(__name__)
 
 WEBAPP_URL = os.getenv("WEBAPP_FRONTEND_URL")
 
 
-@router.post("/create")
-async def create_title(title_data: TitleCreate, db=Depends(get_db)):
+@router.post(
+    "/create",
+    dependencies=[
+        Depends(
+            require_group_permission(Permission.upload, group_id_provider=from_group_id)
+        )
+    ],
+)
+async def create_title(group_id: str, title_data: TitleCreate, db=Depends(get_db)):
     """Creates a new title and schedules a Hatchet workflow for it."""
     created_title = title_data.model_dump(by_alias=True)
-    group = await db.groups.find_one({"name": "NDK"})
 
     # Remove existing title with the same external_id, book is being rescanned
     title = await db.titles.find_one({"external_id": created_title.get("external_id")})
     if title and created_title.get("external_id"):
+        logger.info(
+            f"Title with external_id {created_title['external_id']} already exists, removing for rescan."
+        )
         await db.titles.delete_one({"external_id": created_title["external_id"]})
         await db.groups.update_one(
             {"_id": title.get("group_id")},
@@ -42,11 +58,20 @@ async def create_title(title_data: TitleCreate, db=Depends(get_db)):
         doc = Title(**created_title).model_dump(by_alias=True)
         if doc["external_id"] is None:
             doc["external_id"] = str(doc["_id"])
+        if doc["model"] is None:
+            doc["model"] = (
+                await db.groups.find_one(
+                    {"_id": ObjectId(group_id)}, {"default_model": 1}
+                )
+            )["default_model"]
+            logger.debug(
+                f"Set default model '{doc['model']}' for title based on group settings"
+            )
         await db.titles.insert_one(doc)
 
         # Assign to the default group
         await link_titles_to_group_bulk(
-            title_ids=[doc["_id"]], group_id=group["_id"], db=db
+            title_ids=[ObjectId(doc["_id"])], group_id=ObjectId(group_id), db=db
         )
     except DuplicateKeyError:
         raise HTTPException(400, "Title with this id already exists")
@@ -71,7 +96,16 @@ async def create_title(title_data: TitleCreate, db=Depends(get_db)):
     return {"state": TaskState.scheduled, "id": doc["external_id"]}
 
 
-@router.get("/{external_id}/status")
+@router.get(
+    "/{external_id}/status",
+    dependencies=[
+        Depends(
+            require_group_permission(
+                Permission.upload, group_id_provider=from_external_id
+            )
+        )
+    ],
+)
 async def get_title_state(external_id: str, db=Depends(get_db)):
     """Gets the current state of a title by its ID."""
     title = await db.titles.find_one({"external_id": external_id})
@@ -81,52 +115,72 @@ async def get_title_state(external_id: str, db=Depends(get_db)):
     return {"state": title.get("state"), "id": external_id}
 
 
-@router.get("/{external_id}/open")
+@router.get(
+    "/{external_id}/open",
+    dependencies=[
+        Depends(
+            require_group_permission(
+                Permission.upload, group_id_provider=from_external_id
+            )
+        ),
+        Depends(
+            require_task_state(
+                [TaskState.ready, TaskState.user_approved], external_id_provider=True
+            )
+        ),
+    ],
+)
 async def open_webapp(external_id: str, db=Depends(get_db)):
     """Opens web editor with predicted pages for the given title."""
     title = await db.titles.find_one({"external_id": external_id})
-    if not title:
-        raise HTTPException(404, "Title not found")
-    if title.get("state") not in [TaskState.ready, TaskState.user_approved]:
-        raise HTTPException(
-            400, f"Title is not in a ready state, current state: {title.get('state')}"
+    url = urljoin(WEBAPP_URL, f"book/{title['_id']}")
+    logger.info(f"Redirecting to {url}")
+
+    return RedirectResponse(url=url, status_code=301)
+
+
+@router.get(
+    "/{external_id}/coordinates",
+    dependencies=[
+        Depends(
+            require_group_permission(
+                Permission.upload, group_id_provider=from_external_id
+            )
         )
-
-    return RedirectResponse(
-        url=urljoin(WEBAPP_URL, f"book/{title['_id']}"), status_code=301
-    )
-
-
-@router.get("/{external_id}/coordinates")
+    ],
+)
 async def get_coordinates(external_id: str, db=Depends(get_db)):
     """Get crop instructions for all pages."""
     title = await db.titles.find_one({"external_id": external_id})
 
-    if not title:
-        raise HTTPException(404, "Title not found")
-
     scans = [Scan(**scan) for scan in title.get("scans", [])]
     pages = format_page_data_flat(scans)
 
+    logger.info(f"Returning coordinates for title {external_id}, {len(pages)} pages")
     return {
         "id": external_id,
         "pages": pages,
     }
 
 
-@router.post("/{external_id}/complete")
+@router.post(
+    "/{external_id}/complete",
+    dependencies=[
+        Depends(
+            require_group_permission(
+                Permission.upload, group_id_provider=from_external_id
+            )
+        ),
+        Depends(
+            require_task_state(
+                [TaskState.ready, TaskState.user_approved], external_id_provider=True
+            )
+        ),
+    ],
+)
 async def mark_completed(external_id: str, db=Depends(get_db)):
     """Mark a title as completed."""
     title = await db.titles.find_one({"external_id": external_id})
-    if not title:
-        raise HTTPException(404, "Title not found")
-
-    current_state = title.get("state")
-    if current_state not in [TaskState.ready, TaskState.user_approved]:
-        raise HTTPException(
-            400,
-            f"Title is not in an acceptable state (ready, approved), current state: {current_state}",
-        )
 
     # Check number of errors from the coordinate prediction model
     scans = [Scan(**scan) for scan in title.get("scans", [])]
@@ -136,8 +190,12 @@ async def mark_completed(external_id: str, db=Depends(get_db)):
     if len(errors) > 3:
         # Copy images for retraining, update filepaths
         retrain_filelist = copy_images_for_retraining(title["_id"], title["filelist"])
+        logger.info(
+            f"Title {external_id} marked for retraining, {len(errors)} pages edited by user. Copied {len(retrain_filelist)} files."
+        )
         for scan, new_file in zip(scans, retrain_filelist):
             scan.filename = new_file
+            logger.info(f"Updated scan filename to {new_file}")
 
         # Replace filepaths and mark for retraining
         await db.titles.update_one(
@@ -163,4 +221,5 @@ async def mark_completed(external_id: str, db=Depends(get_db)):
                 }
             },
         )
+        logger.info(f"Title {external_id} marked as completed.")
         return {"state": TaskState.completed, "id": external_id}

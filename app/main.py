@@ -1,21 +1,28 @@
-import os
 from fastapi import FastAPI
-from app.api.routes import groups, ndk_integration, titles, users
+from prometheus_fastapi_instrumentator import Instrumentator
+from app.api import limiter
+from app.api.routes import groups, integration, titles, users, models
 from app.api.setup_db import lifespan
 from fastapi.openapi.utils import get_openapi
 from app.db.schemas.title import TaskState
 from fastapi.middleware.cors import CORSMiddleware
 from app.logs import setup_logging
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 setup_logging()
 
 
-app = FastAPI(title="PageTrace API", lifespan=lifespan)
-if os.getenv("NDK_DEPLOYMENT", "false").lower() in ("1", "true", "yes"):
-    app.include_router(ndk_integration.router)
+app = FastAPI(title="Cropilot API", lifespan=lifespan)
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+app.include_router(integration.router)
 app.include_router(titles.router)
 app.include_router(users.router)
 app.include_router(groups.router)
+app.include_router(models.router)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -30,7 +37,7 @@ def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
     openapi_schema = get_openapi(
-        title="SmartCrop API",
+        title="Cropilot API",
         version="1.0.1",
         routes=app.routes,
     )

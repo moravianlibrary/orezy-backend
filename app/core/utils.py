@@ -148,23 +148,6 @@ def bbox_from_image_contours(image: np.ndarray) -> np.ndarray:
     return np.array([x1, y1, x2, y2])
 
 
-def assign_page_type(scan: Scan) -> Scan:
-    """Assigns page types (left, right, single) based on number of pages in scan.
-
-    Args:
-        scan (Scan): Scan object with predicted pages.
-    Returns:
-        Scan: Updated Scan object with assigned page types.
-    """
-    if len(scan.predicted_pages) == 2:
-        scan.predicted_pages = sorted(scan.predicted_pages, key=lambda d: d.xc)
-        scan.predicted_pages[0].type = "left"
-        scan.predicted_pages[1].type = "right"
-    elif len(scan.predicted_pages) == 1:
-        scan.predicted_pages[0].type = "single"
-    return scan
-
-
 def merge_overlaps(scan: Scan) -> Scan:
     """Removes overlapping pages in a Scan object.
 

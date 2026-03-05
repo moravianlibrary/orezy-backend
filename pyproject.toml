@@ -1,22 +1,25 @@
 [project]
-name = "orezy-backend"
-version = "0.1.0"
-description = "Add your description here"
+name = "cropilot"
+version = "1.0.1"
+description = "Crop images using AI"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 dependencies = [
     "fastapi[standard]>=0.117.1",
     "hatchet>=1.4.0",
-    "hatchet-sdk>=1.18.1",
+    "hatchet-sdk<=1.18.1",
     "opencv-contrib-python>=4.12.0.88",
+    "prometheus-fastapi-instrumentator>=7.1.0",
     "pwdlib[argon2]>=0.3.0",
     "pydantic>=2.11.9",
     "pyjwt>=2.10.1",
     "pymongo>=4.15.1",
     "slowapi>=0.1.9",
     "streamlit>=1.50.0",
+    "torch>=2.10.0",
+    "torchvision>=0.25.0",
     "tqdm>=4.67.1",
-    "ultralytics>=8.3.201",
+    "ultralytics<=8.4.14",
 ]
 
 [project.optional-dependencies]
@@ -50,3 +53,16 @@ test = [
     "pytest>=9.0.1",
     "pytest-asyncio>=1.3.0",
 ]
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cpu" },
+]
+torchvision = [
+  { index = "pytorch-cpu" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

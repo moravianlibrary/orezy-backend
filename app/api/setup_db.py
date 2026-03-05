@@ -1,7 +1,7 @@
+import shutil
 import certifi
+import logging
 from fastapi.security import APIKeyHeader, HTTPBearer, OAuth2PasswordBearer
-from app.db.operations.api import add_users_to_group_bulk
-from app.db.schemas.group import Group
 from app.db.schemas.user import Maintains, Permission, User
 from pymongo import AsyncMongoClient
 from contextlib import asynccontextmanager
@@ -11,7 +11,7 @@ from app.deps import settings_db
 
 from app.db.schemas.user import Role
 
-
+logger = logging.getLogger(__name__)
 client: AsyncMongoClient | None = None
 bearer = HTTPBearer(auto_error=False)
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
@@ -38,8 +38,7 @@ async def lifespan(app):
     db = get_db()
     await create_indexes(db)
     await create_admin(db)
-    if os.getenv("NDK_DEPLOYMENT", "false").lower() in ("1", "true", "yes"):
-        await create_ndk_group(db)
+    await copy_default_model()
 
     yield
     await client.close()
@@ -51,30 +50,9 @@ def get_db():
     return db
 
 
-async def create_ndk_group(db):
-    """Create a default NDK group if none exists."""
-    existing_group = await db.groups.find_one({"name": "NDK"})
-    if existing_group:
-        return
-
-    group = Group(
-        name="NDK",
-        description="Skupina pro tituly z NDK linky",
-    ).model_dump(by_alias=True)
-    await db.groups.insert_one(group)
-
-    # Add admins to default group
-    admin_users = await db.users.find({"role": Role.admin.value}).to_list(length=None)
-    await add_users_to_group_bulk(
-        group_id=group["_id"],
-        user_ids=[user["_id"] for user in admin_users],
-        permission=Permission.manage,
-        db=db,
-    )
-
-
 async def create_indexes(db):
     """Create necessary indexes in the database."""
+    logger.info("Creating database indexes...")
     await db.groups.create_index([("name", 1)], unique=True, name="unique_group_name")
     await db.users.create_index([("email", 1)], unique=True, name="unique_user_email")
     await db.users.create_index([("role", 1)], name="role_index")
@@ -87,7 +65,13 @@ async def create_admin(db):
     """
     existing_admin = await db.users.find_one({"role": "admin"})
     if existing_admin:
-        return
+        if existing_admin["email"] != os.getenv("ADMIN_EMAIL"):
+            logger.info(
+                f"Existing admin '{existing_admin['email']}' does not match admin env var, replacing admin user."
+            )
+            await db.users.delete_one({"_id": existing_admin["_id"]})
+        else:
+            return
 
     group_ids = await db.groups.distinct("_id")
     permissions = []
@@ -105,3 +89,17 @@ async def create_admin(db):
     user["password"] = password_hash.hash(user["password"])
 
     await db.users.insert_one(user)
+    logger.info(
+        f"Admin user '{user['email']}' created with permissions for all groups."
+    )
+
+
+async def copy_default_model():
+    """Copy default model to models volume if not already present."""
+    if "default.pt" not in os.listdir(os.environ["MODELS_VOLUME_PATH"]):
+        source = "models/crop-yolov10s-100e-mosaic-best.pt"
+        dest = os.path.join(os.environ["MODELS_VOLUME_PATH"], "default.pt")
+        shutil.copy(source, dest)
+        logger.info(
+            f"Model not found, copied default model from '{source}' to '{dest}'"
+        )
