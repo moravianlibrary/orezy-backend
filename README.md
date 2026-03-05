@@ -50,9 +50,9 @@ Then, run the application in following steps:
 
 The production version is stored in docker-compose.yml, and uses 3 environment files in total, which need to be set accordingly:
 
-- *.env*: A password file. Create this file from .env.example, replace with your generated passwords. You will be regularly using WEBAPP_TOKEN variable for communication with API, the rest is internal to the application.
+- *.env*: A password file. Create this file from .env.example, replace with your generated passwords.
 - *.admin-user-env*: Default login credentials for Hatchet UI and Cropilot. Create it from .admin-user-env.example.
-- *.worker-env*: Contains a JWT token obtained from Hatchet. Generate the file by running `bash generate-worker-env.sh`.
+- *.worker-env*: Contains a JWT token obtained from Hatchet. Generate the file by running `generate-worker-env.sh`.
 
 Inside docker compose itself, there are 3 volumes which need to be set: retrain, upload and models volume. The related env. and build variables then need to point to this location (SCANS_VOLUME_PATH, RETRAIN_VOLUME_PATH, MODELS_VOLUME_PATH)
 
