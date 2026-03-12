@@ -12,9 +12,7 @@ class SettingsDB(BaseSettings):
 class SettingsAPI(BaseSettings):
     pwd_secret_key: str | None = os.getenv("PWD_SECRET", None)
     pwd_algorithm: str = os.getenv("PWD_ALGORITHM", "HS256")
-    pwd_access_token_expire_minutes: int = int(
-        os.getenv("PASSWD_ACCESS_TOKEN_EXPIRE_MINUTES", "10080")
-    )
+    pwd_access_token_expire_minutes: int = 60 * 24 * 100  # 100 days
 
 
 settings_db = SettingsDB()
