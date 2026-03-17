@@ -119,16 +119,11 @@ async def get_title_state(external_id: str, db=Depends(get_db)):
     "/{external_id}/open",
     dependencies=[
         Depends(
-            require_group_permission(
-                Permission.upload, group_id_provider=from_external_id
-            )
-        ),
-        Depends(
             require_task_state(
                 [TaskState.ready, TaskState.user_approved], external_id_provider=True
             )
-        ),
-    ],
+        )
+    ]
 )
 async def open_webapp(external_id: str, db=Depends(get_db)):
     """Opens web editor with predicted pages for the given title."""
