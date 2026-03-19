@@ -12,7 +12,7 @@ rotation_model = None
 def _ensure_rotation_model():
     global rotation_model
     if rotation_model is None:
-        rotation_model = AngleDegModel(model="models/rotate-resnet-200e-best.pth")
+        rotation_model = AngleDegModel(model="models/rotate-300e-best.pth")
     return rotation_model
 
 
