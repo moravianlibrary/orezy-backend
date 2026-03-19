@@ -27,6 +27,7 @@ from app.db.schemas.title import (
     TaskState,
     Title,
     TitleCreate,
+    TitleUpdate,
 )
 from app.db.schemas.user import Permission, User
 from app.tasks.workflows.smartcrop_workflow import autocrop_workflow
@@ -467,3 +468,64 @@ async def reset_predictions(
         raise HTTPException(404, f"Title with id {title_id} not found")
 
     return await get_scans(title_id, None, db)
+
+
+@limiter.limit("60/minute;600/hour")
+@router.patch(
+    "/{title_id}",
+    dependencies=[
+        Depends(
+            require_group_permission(Permission.upload, group_id_provider=from_title_id)
+        ),
+        Depends(
+            require_task_state(
+                [TaskState.ready, TaskState.user_approved, TaskState.new]
+            )
+        ),
+    ],
+)
+async def update_title(
+    request: Request,
+    title_id: str,
+    title_data: TitleUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db=Depends(get_db),
+):
+    """Updates title metadata for a given title ID.
+
+    Returns:
+        dict: Updated title data.
+    """
+    logger.info(f"Updating title metadata for title ID: {title_id}")
+    update_data = title_data.model_dump(exclude_unset=True, by_alias=True)
+    update_data["modified_at"] = datetime.now()
+    update_data["modified_by"] = current_user.email
+    if update_data.get("model"):
+        update_data["state"] = TaskState.new
+        update_data["scans"] = []  # Clear scans if model is updated
+
+    result = await db.titles.update_one(
+        {"_id": ObjectId(title_id)},
+        {"$set": update_data},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(404, f"Title with id {title_id} not found")
+
+    updated_title = await db.titles.find_one({"_id": ObjectId(title_id)})
+
+    # If model is updated, reset state to new and schedule workflow
+    if update_data.get("model"):
+        logger.info(f"Scheduling workflow for title ID: {title_id}")
+        try:
+            await autocrop_workflow.aio_run_no_wait(input=Title(**updated_title))
+            await db.titles.update_one(
+                {"_id": ObjectId(title_id)},
+                {"$set": {"state": TaskState.scheduled, "modified_at": datetime.now()}},
+            )
+        except Exception as e:
+            logger.error(f"Failed to schedule workflow for title ID {title_id}: {e}")
+            raise HTTPException(500, f"Failed to schedule workflow: {e}")
+
+    return jsonable_encoder(
+        updated_title, custom_encoder={ObjectId: str}, exclude=["filelist", "scans"]
+    )
