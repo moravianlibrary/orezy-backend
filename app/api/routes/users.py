@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 import logging
 from typing import Annotated
 
@@ -8,7 +8,6 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.security import OAuth2PasswordRequestForm
 from app.api.setup_db import get_db
 from app.db.operations.api import add_group_name_to_user_response
-from app.deps import settings_api
 from app.api.authz import from_title_id, require_role
 from app.db.schemas.user import Role, User, UserCreate, UserUpdate
 from app.api.authn import (
@@ -40,16 +39,12 @@ async def login_for_access_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    access_token_expires = timedelta(
-        minutes=settings_api.pwd_access_token_expire_minutes
-    )
     access_token = create_access_token(
         data={
             "type": "user",
             "sub": user["email"],
             "role": user["role"],
         },
-        expires_delta=access_token_expires,
     )
 
     return Token(access_token=access_token, token_type="bearer")

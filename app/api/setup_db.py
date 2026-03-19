@@ -38,6 +38,7 @@ async def lifespan(app):
     db = get_db()
     await create_indexes(db)
     await create_admin(db)
+    await create_public_user(db)
     await copy_default_model()
 
     yield
@@ -92,6 +93,28 @@ async def create_admin(db):
     logger.info(
         f"Admin user '{user['email']}' created with permissions for all groups."
     )
+
+
+async def create_public_user(db):
+    """Create a public user if none exists.
+    Uses PUBLIC_USER_EMAIL and PUBLIC_USER_PASSWORD env vars.
+    Has no group permissions, used for API key auth.
+    """
+    existing_user = await db.users.find_one({"email": "public@user.cropilot"})
+    if not existing_user:
+        user = User(
+            full_name="Public User",
+            email="public@user.cropilot",
+            password="",
+            role=Role.user,
+            permissions=[],
+        )
+        user = user.model_dump(by_alias=True)
+
+        await db.users.insert_one(user)
+        logger.info(
+            f"Public API user '{user['email']}' created with no group permissions."
+        )
 
 
 async def copy_default_model():

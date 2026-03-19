@@ -1,4 +1,4 @@
-FROM trinera/smart-crop-base:1.0.1 AS base
+FROM trinera/smart-crop-base:1.1.0 AS base
 
 USER root
 # Copy source code

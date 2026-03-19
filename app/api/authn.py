@@ -63,7 +63,7 @@ async def authenticate_user(db, email: str, password: str) -> User | bool:
 
 
 def create_access_token(
-    data: dict, expires_delta: timedelta = settings_api.pwd_access_token_expire_minutes
+    data: dict, expires_delta_min: int = settings_api.pwd_access_token_expire_minutes
 ):
     """Create a JWT access token.
 
@@ -75,7 +75,7 @@ def create_access_token(
     """
     to_encode = data.copy()
 
-    expire = datetime.now(timezone.utc) + expires_delta
+    expire = datetime.now(timezone.utc) + timedelta(minutes=expires_delta_min)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(
         to_encode, settings_api.pwd_secret_key, algorithm=settings_api.pwd_algorithm
@@ -106,11 +106,21 @@ async def get_current_user(
                 settings_api.pwd_secret_key,
                 algorithms=[settings_api.pwd_algorithm],
             )
+            # check expiration
+            if payload.get("exp") < int(datetime.now(timezone.utc).timestamp()):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired"
+                )
 
+            # check if user exists
             email = payload.get("sub")
             user = await db.users.find_one({"email": email})
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail="Token invalid"
+                )
         # API key authentication, group-based access for API users
-        if api_key:
+        elif api_key:
             group_id = await auth_via_api_key(api_key, db)
             user = {
                 "email": "api@request.user",
@@ -123,11 +133,15 @@ async def get_current_user(
                     },
                 ],
             }
+        # No credentials provided, use public user with limited permissions
+        else:
+            logger.debug("No authentication credentials provided, using public user")
+            user = await db.users.find_one({"email": "public@user.cropilot"})
         return User(**user)
-    except Exception:
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
+            detail="Could not validate credentials, " + str(e),
             headers={"WWW-Authenticate": "Bearer"},
         )
 
