@@ -1,6 +1,8 @@
 import numpy as np
-from app.core.utils import bbox_intersection, cxywh_to_xyxy
+import torch
+from app.core.utils import cxywh_to_xyxy
 from app.db.schemas.title import Anomaly, Page, Scan
+from torchvision.ops import box_iou
 
 
 def flag_missing_pages(scans: list[Scan]) -> list[Scan]:
@@ -100,7 +102,7 @@ def flag_prediction_errors(scans: list[Scan]) -> list[Scan]:
 
 
 def flag_prediction_overlaps(scans: list[Scan]) -> list[Scan]:
-    """Adds a flag when predicted pages overlap each other.
+    """Adds a flag when predicted pages overlap each other by more than 5%.
 
     Args:
         scans (list[Scan]): List of detected scans.
@@ -112,20 +114,24 @@ def flag_prediction_overlaps(scans: list[Scan]) -> list[Scan]:
         if len(scan.predicted_pages) < 2:
             continue
 
-        boxes = np.array(
-            [
-                cxywh_to_xyxy(
-                    int(
-                        page.xc * 1000
-                    ),  # multiply by arbitrary constant to avoid float precision issues
-                    int(page.yc * 1000),
-                    int(page.width * 1000),
-                    int(page.height * 1000),
+        for i in range(len(scan.predicted_pages)):
+            for j in range(i + 1, len(scan.predicted_pages)):
+                box1 = cxywh_to_xyxy(
+                    scan.predicted_pages[i].xc * 1000,
+                    scan.predicted_pages[i].yc * 1000,
+                    scan.predicted_pages[i].width * 1000,
+                    scan.predicted_pages[i].height * 1000,
                 )
-                for page in scan.predicted_pages
-            ]
-        )
-        if bbox_intersection(boxes[0], boxes[1]) is not None:
-            for page in scan.predicted_pages:
-                page.flags += [Anomaly.prediction_overlap]
+                box2 = cxywh_to_xyxy(
+                    scan.predicted_pages[j].xc * 1000,
+                    scan.predicted_pages[j].yc * 1000,
+                    scan.predicted_pages[j].width * 1000,
+                    scan.predicted_pages[j].height * 1000,
+                )
+                iou = box_iou(
+                    torch.tensor([box1], dtype=torch.float),
+                    torch.tensor([box2], dtype=torch.float),
+                )[0][0].item()
+                if iou > 0.05:
+                    scan.predicted_pages[j].flags += [Anomaly.prediction_overlap]
     return scans
