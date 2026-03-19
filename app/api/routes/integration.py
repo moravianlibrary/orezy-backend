@@ -123,7 +123,7 @@ async def get_title_state(external_id: str, db=Depends(get_db)):
                 [TaskState.ready, TaskState.user_approved], external_id_provider=True
             )
         )
-    ]
+    ],
 )
 async def open_webapp(external_id: str, db=Depends(get_db)):
     """Opens web editor with predicted pages for the given title."""

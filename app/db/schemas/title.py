@@ -70,6 +70,13 @@ class TitleCreate(BaseModel):
     metadata: dict | None = None
 
 
+class TitleUpdate(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    external_id: str | None = None
+    model: str | None = None
+
+
 class Title(BaseModelWithId):
     external_id: str | None = None
     filelist: list[str] = Field(default_factory=list)

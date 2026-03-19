@@ -94,6 +94,7 @@ async def create_admin(db):
         f"Admin user '{user['email']}' created with permissions for all groups."
     )
 
+
 async def create_public_user(db):
     """Create a public user if none exists.
     Uses PUBLIC_USER_EMAIL and PUBLIC_USER_PASSWORD env vars.
