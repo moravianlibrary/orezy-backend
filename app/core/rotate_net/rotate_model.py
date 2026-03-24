@@ -56,11 +56,7 @@ def rotate_pages(
             idx += 1
 
         # Post-process: fix rotation errors and resize bboxes
-        res.predicted_pages = autofix_rotation_errors(res.predicted_pages, res.filename)
-        # for bbox in res.predicted_pages:
-        #    bbox.width, bbox.height = resize_bbox_ratio_by_angle(
-        #        bbox.width, bbox.height, bbox.angle
-        #    )
+        # res.predicted_pages = autofix_rotation_errors(res.predicted_pages, res.filename)
 
     return scan_results
 

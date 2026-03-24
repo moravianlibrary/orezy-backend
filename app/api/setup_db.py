@@ -97,13 +97,12 @@ async def create_admin(db):
 
 async def create_public_user(db):
     """Create a public user if none exists.
-    Uses PUBLIC_USER_EMAIL and PUBLIC_USER_PASSWORD env vars.
     Has no group permissions, used for API key auth.
     """
     existing_user = await db.users.find_one({"email": "public@user.cropilot"})
     if not existing_user:
         user = User(
-            full_name="Public User",
+            full_name="Veřejný uživatel",
             email="public@user.cropilot",
             password="",
             role=Role.user,
